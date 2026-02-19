@@ -4,7 +4,6 @@ import { FC, ReactNode, useMemo } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
-import { MobileWalletAdapter } from "@solana-mobile/wallet-adapter-mobile";
 import { clusterApiUrl } from "@solana/web3.js";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
@@ -13,11 +12,9 @@ export const WalletProviderWrapper: FC<{ children: ReactNode }> = ({ children })
   const endpoint = useMemo(() => "https://api.mainnet-beta.solana.com", []);
   const wallets = useMemo(
     () => [
-      new MobileWalletAdapter({
-        chain: "mainnet-beta",
-      }),
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter(),
+      // Mobile wallets available through standard adapters when on mobile browsers
     ],
     []
   );
