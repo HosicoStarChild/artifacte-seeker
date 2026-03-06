@@ -23,12 +23,14 @@ export default function Footer() {
               <ul className="space-y-2 text-sm text-gray-500">
                 <li><a href="/auctions" className="hover:text-white transition">Auctions</a></li>
                 <li><a href="/about" className="hover:text-white transition">About</a></li>
+                <li><a href="/agents" className="hover:text-white transition">Agents</a></li>
               </ul>
             </div>
             <div>
               <p className="text-xs font-semibold text-white tracking-widest uppercase mb-4">Explore</p>
               <ul className="space-y-2 text-sm text-gray-500">
-                <li><a href="/submit" className="hover:text-white transition">Submit RWA</a></li>
+                <li><a href="/digital-art" className="hover:text-white transition">Digital Art</a></li>
+                <li><a href="/apply" className="hover:text-white transition">Apply to List</a></li>
                 <li><a href="https://github.com" className="hover:text-white transition">GitHub</a></li>
               </ul>
             </div>
