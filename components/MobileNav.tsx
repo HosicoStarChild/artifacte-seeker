@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Gavel, ShoppingBag, Plus } from "lucide-react";
+import { Home, Gavel, ShoppingBag, Plus, Bot } from "lucide-react";
 
 const MobileNav = () => {
   const pathname = usePathname();
@@ -16,6 +16,7 @@ const MobileNav = () => {
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
     { href: "/auctions", icon: Gavel, label: "Auctions" },
+    { href: "/agents", icon: Bot, label: "Agents" },
     { href: "/portfolio", icon: ShoppingBag, label: "Portfolio" },
     { href: "/submit", icon: Plus, label: "Submit" },
   ];
