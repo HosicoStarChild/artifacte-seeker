@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { auctions, listings, formatFullPrice } from "@/lib/data";
+import { auctions, listings, formatFullPrice, TREASURY_WALLET, USD1_MINT, USDC_MINT } from "@/lib/data";
 import AuctionCard from "@/components/AuctionCard";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useConnection } from "@solana/wallet-adapter-react";
@@ -14,10 +14,10 @@ const WalletMultiButton = dynamic(
   { ssr: false }
 );
 
-const TREASURY = new PublicKey("DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX");
+const TREASURY = new PublicKey(TREASURY_WALLET);
 const TOKENS: Record<string, { mint: PublicKey; decimals: number; label: string }> = {
-  USD1: { mint: new PublicKey("USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB"), decimals: 6, label: "USD1" },
-  USDC: { mint: new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"), decimals: 6, label: "USDC" },
+  USD1: { mint: new PublicKey(USD1_MINT), decimals: 6, label: "USD1" },
+  USDC: { mint: new PublicKey(USDC_MINT), decimals: 6, label: "USDC" },
 };
 
 export default function AuctionsPage() {

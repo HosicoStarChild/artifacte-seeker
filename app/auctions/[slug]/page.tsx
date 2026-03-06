@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { auctions, formatFullPrice, Bid } from "@/lib/data";
+import { auctions, formatFullPrice, Bid, TREASURY_WALLET, USD1_MINT, USDC_MINT } from "@/lib/data";
 import Countdown from "@/components/Countdown";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
@@ -14,10 +14,10 @@ const WalletMultiButton = dynamic(
   { ssr: false }
 );
 
-const TREASURY = new PublicKey("DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX");
+const TREASURY = new PublicKey(TREASURY_WALLET);
 const TOKENS: Record<string, { mint: PublicKey; decimals: number }> = {
-  USD1: { mint: new PublicKey("USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB"), decimals: 6 },
-  USDC: { mint: new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"), decimals: 6 },
+  USD1: { mint: new PublicKey(USD1_MINT), decimals: 6 },
+  USDC: { mint: new PublicKey(USDC_MINT), decimals: 6 },
 };
 
 export default function AuctionDetail() {

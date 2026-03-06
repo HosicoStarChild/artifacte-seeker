@@ -1,3 +1,10 @@
+// On-chain program constants
+export const AUCTION_PROGRAM_ID = "23fKEH3emeaJf1PW4Kts3exRnMjoNiqmqyFoNXH6qNiN";
+export const RWA_NFT_PROGRAM_ID = "F9mkXqMrgF1sSV3wDtTUpTs82B5XJ5qz9A33nBAdcNqb";
+export const TREASURY_WALLET = "DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX";
+export const USD1_MINT = "USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB";
+export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
 export type Category = 
   | "REAL_ESTATE" | "DIGITAL_ART" | "AGRICULTURE" 
   | "AVIATION" | "PRECIOUS_METALS" | "LUXURY" | "SPIRITS"
@@ -156,6 +163,45 @@ export const auctions: Auction[] = [
       { bidder: "5mQ8...bN1y", amount: 310000, time: new Date(now - 72000000).toISOString() },
       { bidder: "2kL7...qR9z", amount: 280000, time: new Date(now - 86400000).toISOString() },
       { bidder: "8wN3...tF6a", amount: 260000, time: new Date(now - 172800000).toISOString() },
+    ],
+  },
+  {
+    id: "a5", slug: "charizard-holographic",
+    name: "Charizard Holographic Base Set",
+    subtitle: "POKEMON TCG RARE",
+    category: "TCG_CARDS", current_bid: 12500, start_price: 8000,
+    end_time: new Date(now + 4 * day).toISOString(),
+    image: "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=800",
+    description: "1999 Pokémon Base Set Charizard Holographic (4/102). Graded PSA 8. Pristine condition with sharp corners and excellent centering.",
+    bids: [
+      { bidder: "5kL2...dF9w", amount: 12500, time: new Date(now - 7200000).toISOString() },
+      { bidder: "2tR4...bN6x", amount: 11000, time: new Date(now - 14400000).toISOString() },
+    ],
+  },
+  {
+    id: "a6", slug: "michael-jordan-rookie",
+    name: "Michael Jordan Rookie Card",
+    subtitle: "SPORTS CARDS LEGEND",
+    category: "SPORTS_CARDS", current_bid: 85000, start_price: 55000,
+    end_time: new Date(now + 6 * day).toISOString(),
+    image: "https://images.unsplash.com/photo-1518611505868-48aeb845e7c6?w=800",
+    description: "1986-87 Fleer Michael Jordan Rookie Card #57. Graded PSA 9. Iconic card in excellent condition.",
+    bids: [
+      { bidder: "9hJ3...cQ8z", amount: 85000, time: new Date(now - 3600000).toISOString() },
+      { bidder: "4mW7...xT5n", amount: 72000, time: new Date(now - 18000000).toISOString() },
+    ],
+  },
+  {
+    id: "a7", slug: "rolex-submariner-gold",
+    name: "Rolex Submariner Date Gold",
+    subtitle: "LUXURY WATCHES",
+    category: "WATCHES", current_bid: 45000, start_price: 32000,
+    end_time: new Date(now + 8 * day).toISOString(),
+    image: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=800",
+    description: "Rolex Submariner Date 16613 in 18K yellow gold. 1995 vintage. Excellent condition with original dial and hands. Complete with box and papers.",
+    bids: [
+      { bidder: "6pK1...jM9a", amount: 45000, time: new Date(now - 900000).toISOString() },
+      { bidder: "8wN3...tF6a", amount: 38000, time: new Date(now - 43200000).toISOString() },
     ],
   },
 ];
