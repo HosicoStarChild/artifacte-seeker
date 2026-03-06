@@ -1,6 +1,7 @@
 export type Category = 
   | "REAL_ESTATE" | "DIGITAL_ART" | "AGRICULTURE" 
-  | "AVIATION" | "PRECIOUS_METALS" | "LUXURY" | "SPIRITS";
+  | "AVIATION" | "PRECIOUS_METALS" | "LUXURY" | "SPIRITS"
+  | "TCG_CARDS" | "SPORTS_CARDS" | "WATCHES";
 
 export interface Asset {
   id: string;
@@ -40,6 +41,7 @@ export interface Listing {
   subtitle: string;
   price: number;
   image: string;
+  category?: Category;
 }
 
 const now = Date.now();
@@ -159,12 +161,16 @@ export const auctions: Auction[] = [
 ];
 
 export const listings: Listing[] = [
-  { id: "l1", name: "Zambian Emerald 4ct", subtitle: "Certified Precious Gemstone", price: 28000, image: "https://images.unsplash.com/photo-1583937443566-6b064bd677e9?w=400" },
-  { id: "l2", name: "SkyLink Jet Fleet", subtitle: "Yield-bearing aviation RWA", price: 5000000, image: "https://images.unsplash.com/photo-1474302770737-173ee21bab63?w=400" },
-  { id: "l3", name: "Tuscany Vineyard Estate", subtitle: "Agricultural Asset NFT", price: 1500000, image: "https://images.unsplash.com/photo-1560493676-04071c5f467b?w=400" },
-  { id: "l4", name: "Platinum Bar Collection", subtitle: "Physical Precious Metal Holdings", price: 450000, image: "https://images.unsplash.com/photo-1589656966895-2f33e7653819?w=400" },
-  { id: "l5", name: "Miami Oceanfront Penthouse", subtitle: "Luxury Real Estate NFT", price: 2000000, image: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400" },
-  { id: "l6", name: "Eternal Light Sculpture", subtitle: "Premium Digital Art NFT", price: 32500, image: "https://images.unsplash.com/photo-1561214115-f2f134cc4912?w=400" },
+  { id: "l1", name: "Zambian Emerald 4ct", subtitle: "Certified Precious Gemstone", price: 28000, image: "https://images.unsplash.com/photo-1583937443566-6b064bd677e9?w=400", category: "PRECIOUS_METALS" },
+  { id: "l2", name: "SkyLink Jet Fleet", subtitle: "Yield-bearing aviation RWA", price: 5000000, image: "https://images.unsplash.com/photo-1474302770737-173ee21bab63?w=400", category: "AVIATION" },
+  { id: "l3", name: "Tuscany Vineyard Estate", subtitle: "Agricultural Asset NFT", price: 1500000, image: "https://images.unsplash.com/photo-1560493676-04071c5f467b?w=400", category: "AGRICULTURE" },
+  { id: "l4", name: "Platinum Bar Collection", subtitle: "Physical Precious Metal Holdings", price: 450000, image: "https://images.unsplash.com/photo-1589656966895-2f33e7653819?w=400", category: "PRECIOUS_METALS" },
+  { id: "l5", name: "Miami Oceanfront Penthouse", subtitle: "Luxury Real Estate NFT", price: 2000000, image: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400", category: "REAL_ESTATE" },
+  { id: "l6", name: "Eternal Light Sculpture", subtitle: "Premium Digital Art NFT", price: 32500, image: "https://images.unsplash.com/photo-1561214115-f2f134cc4912?w=400", category: "DIGITAL_ART" },
+  { id: "l7", name: "Blastoise Holographic Card", subtitle: "Pokemon TCG Vintage", price: 8500, image: "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=400", category: "TCG_CARDS" },
+  { id: "l8", name: "Babe Ruth Signed Baseball Card", subtitle: "Vintage Sports Memorabilia", price: 45000, image: "https://images.unsplash.com/photo-1518611505868-48aeb845e7c6?w=400", category: "SPORTS_CARDS" },
+  { id: "l9", name: "Omega Speedmaster Professional", subtitle: "Chronograph Luxury Watch", price: 6500, image: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=400", category: "WATCHES" },
+  { id: "l10", name: "Macallan 25 Year Single Malt", subtitle: "Rare Single Cask Whisky", price: 18000, image: "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=400", category: "SPIRITS" },
 ];
 
 export const categoryColors: Record<Category, string> = {
@@ -175,6 +181,9 @@ export const categoryColors: Record<Category, string> = {
   PRECIOUS_METALS: "text-yellow-400",
   LUXURY: "text-gold-400",
   SPIRITS: "text-amber-400",
+  TCG_CARDS: "text-red-400",
+  SPORTS_CARDS: "text-orange-400",
+  WATCHES: "text-gold-400",
 };
 
 export const categoryLabels: Record<Category, string> = {
@@ -185,6 +194,17 @@ export const categoryLabels: Record<Category, string> = {
   PRECIOUS_METALS: "PRECIOUS METALS",
   LUXURY: "LUXURY",
   SPIRITS: "SPIRITS",
+  TCG_CARDS: "TCG CARDS",
+  SPORTS_CARDS: "SPORTS CARDS",
+  WATCHES: "WATCHES",
+};
+
+export const categorySlugMap: Record<string, Category> = {
+  "digital-art": "DIGITAL_ART",
+  "spirits": "SPIRITS",
+  "tcg-cards": "TCG_CARDS",
+  "sports-cards": "SPORTS_CARDS",
+  "watches": "WATCHES",
 };
 
 export function formatPrice(n: number): string {

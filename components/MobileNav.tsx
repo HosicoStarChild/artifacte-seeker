@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Gavel, Image, ShoppingBag, Settings, AlertCircle } from "lucide-react";
+import { Home, Gavel, ShoppingBag, Plus } from "lucide-react";
 
 const MobileNav = () => {
   const pathname = usePathname();
@@ -16,13 +16,12 @@ const MobileNav = () => {
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
     { href: "/auctions", icon: Gavel, label: "Auctions" },
-    { href: "/digital-art", icon: Image, label: "Gallery" },
     { href: "/portfolio", icon: ShoppingBag, label: "Portfolio" },
-    { href: "/submit", icon: AlertCircle, label: "Submit" },
+    { href: "/submit", icon: Plus, label: "Submit" },
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-yellow-600/20 z-50 safe-area-inset-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 bg-dark-900 border-t border-white/5 z-50 safe-area-inset-bottom">
       <div className="flex justify-around items-stretch h-16 md:hidden">
         {navItems.map(({ href, icon: Icon, label }) => {
           const active = isActive(href);
@@ -32,8 +31,8 @@ const MobileNav = () => {
               href={href}
               className={`flex-1 flex flex-col items-center justify-center gap-1 transition-all ${
                 active
-                  ? "bg-yellow-600/10 border-t-2 border-yellow-500 text-yellow-500"
-                  : "text-slate-400 hover:text-slate-300"
+                  ? "bg-gold-500/10 border-t-2 border-gold-500 text-gold-500"
+                  : "text-gray-400 hover:text-gray-300"
               }`}
             >
               <Icon size={24} />
@@ -53,8 +52,8 @@ const MobileNav = () => {
               href={href}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
                 active
-                  ? "bg-yellow-600/10 border border-yellow-500 text-yellow-500"
-                  : "text-slate-400 hover:text-slate-300"
+                  ? "bg-gold-500/10 border border-gold-500 text-gold-500"
+                  : "text-gray-400 hover:text-gray-300"
               }`}
             >
               <Icon size={20} />

@@ -79,21 +79,21 @@ export default function AuctionsPage() {
       )}
 
       {/* Header */}
-      <div className="px-4 md:px-8 py-6 border-b border-yellow-600/20">
-        <p className="text-yellow-500 text-xs font-bold tracking-[0.2em] uppercase mb-2">Marketplace</p>
+      <div className="pt-24 px-4 md:px-8 py-6 border-b border-white/5">
+        <p className="text-gold-500 text-xs font-bold tracking-[0.2em] uppercase mb-2">Marketplace</p>
         <h1 className="font-serif text-3xl md:text-4xl text-white mb-2">Auctions</h1>
-        <p className="text-slate-400 text-sm">Buy or bid on real-world assets tokenized on Solana</p>
+        <p className="text-gray-400 text-sm">Buy or bid on real-world assets tokenized on Solana</p>
       </div>
 
       <div className="px-4 md:px-8 py-6 md:py-8">
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 bg-slate-900 rounded-lg p-1 w-fit touch-action-manipulation">
+        <div className="flex gap-2 mb-6 bg-dark-800 rounded-lg p-1 w-fit touch-action-manipulation border border-white/5">
           <button
             onClick={() => setTab("fixed")}
             className={`px-4 md:px-5 py-2.5 rounded-md text-sm font-medium transition touch-target ${
               tab === "fixed"
-                ? "bg-yellow-500 text-slate-900"
-                : "text-slate-400 hover:text-slate-300"
+                ? "bg-gold-500 text-dark-900"
+                : "text-gray-400 hover:text-white"
             }`}
           >
             Fixed Price
@@ -102,8 +102,8 @@ export default function AuctionsPage() {
             onClick={() => setTab("live")}
             className={`px-4 md:px-5 py-2.5 rounded-md text-sm font-medium transition touch-target ${
               tab === "live"
-                ? "bg-yellow-500 text-slate-900"
-                : "text-slate-400 hover:text-slate-300"
+                ? "bg-gold-500 text-dark-900"
+                : "text-gray-400 hover:text-white"
             }`}
           >
             Live Auctions
@@ -112,14 +112,14 @@ export default function AuctionsPage() {
 
         {/* Currency Selector */}
         <div className="flex flex-col md:flex-row md:items-center gap-3 mb-6 touch-action-manipulation">
-          <span className="text-slate-500 text-xs uppercase tracking-wider">Pay with:</span>
-          <div className="flex gap-1 bg-slate-900 rounded-lg p-1 w-fit">
+          <span className="text-gray-500 text-xs uppercase tracking-wider">Pay with:</span>
+          <div className="flex gap-1 bg-dark-800 rounded-lg p-1 w-fit border border-white/5">
             {(["USD1", "USDC"] as const).map((c) => (
               <button
                 key={c}
                 onClick={() => setCurrency(c)}
                 className={`px-4 py-2 rounded-md text-xs font-medium transition touch-target ${
-                  currency === c ? "bg-yellow-500 text-slate-900" : "text-slate-400 hover:text-slate-300"
+                  currency === c ? "bg-gold-500 text-dark-900" : "text-gray-400 hover:text-white"
                 }`}
               >
                 {c}
@@ -134,8 +134,8 @@ export default function AuctionsPage() {
             {listings.map((l) => {
               const usd1Amount = l.price.toLocaleString();
               return (
-                <div key={l.id} className="bg-slate-900 rounded-xl border border-yellow-600/20 overflow-hidden hover:border-yellow-500/40 transition card-hover group">
-                  <div className="aspect-video md:aspect-[4/3] overflow-hidden bg-slate-800">
+                <div key={l.id} className="bg-dark-800 rounded-lg border border-white/5 overflow-hidden hover:border-white/10 transition card-hover group">
+                  <div className="aspect-video md:aspect-[4/3] overflow-hidden bg-dark-900">
                     <img
                       src={l.image}
                       alt={l.name}
@@ -143,23 +143,23 @@ export default function AuctionsPage() {
                     />
                   </div>
                   <div className="p-4">
-                    <span className="text-[10px] font-bold tracking-widest text-yellow-500 uppercase">Fixed Price</span>
+                    <span className="text-[10px] font-bold tracking-widest text-gold-500 uppercase">Fixed Price</span>
                     <h3 className="text-white font-semibold mt-2 line-clamp-2">{l.name}</h3>
-                    <p className="text-slate-400 text-xs mt-1 line-clamp-1">{l.subtitle}</p>
-                    <div className="mt-4 pt-4 border-t border-yellow-600/20">
-                      <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-1">Price</p>
+                    <p className="text-gray-500 text-xs mt-1 line-clamp-1">{l.subtitle}</p>
+                    <div className="mt-4 pt-4 border-t border-white/5">
+                      <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Price</p>
                       <p className="text-white font-bold text-lg mb-1">{formatFullPrice(l.price)}</p>
-                      <p className="text-yellow-500 text-xs mb-4">{usd1Amount} {currency}</p>
+                      <p className="text-gold-500 text-xs mb-4">{usd1Amount} {currency}</p>
                       {connected ? (
                         <button
                           onClick={() => handleBuyNow(l.id, l.price)}
                           disabled={buyingId === l.id}
-                          className="w-full px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-slate-900 rounded-lg text-sm font-bold transition touch-action-manipulation touch-target"
+                          className="w-full px-4 py-2 bg-gold-500 hover:bg-gold-600 disabled:opacity-50 text-dark-900 rounded-lg text-sm font-bold transition touch-action-manipulation touch-target"
                         >
                           {buyingId === l.id ? "Processing..." : "Buy Now"}
                         </button>
                       ) : (
-                        <WalletMultiButton className="!bg-yellow-500 hover:!bg-yellow-600 !rounded-lg !h-10 !text-sm !font-medium !w-full" />
+                        <WalletMultiButton className="!bg-gold-500 hover:!bg-gold-600 !rounded-lg !h-10 !text-sm !font-medium !w-full" />
                       )}
                     </div>
                   </div>
