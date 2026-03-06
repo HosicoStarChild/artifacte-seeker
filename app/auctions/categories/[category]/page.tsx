@@ -219,10 +219,11 @@ export default function CategoryAuctionsPage() {
                         <div>
                           <div className="flex items-center justify-between gap-2 mb-3">
                             <span className="text-xs font-semibold tracking-widest text-gold-500 uppercase">Fixed Price</span>
-                            <VerifiedBadge collectionName={l.name} />
+                            <VerifiedBadge collectionName={l.name} verifiedBy={l.verifiedBy} />
                           </div>
                           <h3 className="text-white font-medium text-base mb-1">{l.name}</h3>
-                          <p className="text-gray-500 text-xs mb-4">{l.subtitle}</p>
+                          <p className="text-gray-500 text-xs mb-1">{l.subtitle}</p>
+                          <p className="text-gray-600 text-xs mb-4">{categoryName}</p>
                         </div>
                         <div className="space-y-4">
                           <div>
