@@ -4,11 +4,11 @@ import { Asset, categoryLabels, categoryColors, formatFullPrice } from "@/lib/da
 export default function AssetCard({ asset }: { asset: Asset }) {
   return (
     <Link href={`/auctions/master-ultra-thin-calendar`} className="card-hover block">
-      <div className="bg-dark-800 rounded-lg overflow-hidden border border-white/5 h-full">
+      <div className="bg-navy-800 rounded-xl overflow-hidden border border-white/5 h-full">
         <div className="relative h-48 overflow-hidden">
           <img src={asset.image} alt={asset.name} className="w-full h-full object-cover" />
           {asset.highDemand && (
-            <span className="absolute top-3 right-3 bg-gold-500/90 text-dark-900 text-[10px] font-bold px-2 py-0.5 rounded">
+            <span className="absolute top-3 right-3 bg-gold-500/90 text-navy-900 text-[10px] font-bold px-2 py-0.5 rounded">
               High Demand
             </span>
           )}

@@ -18,11 +18,12 @@ export interface AgentData {
   address: string;
 }
 
-function getProgram(wallet: WalletContextState, connection: Connection): Program {
+function getProgram(wallet: WalletContextState, connection: Connection): any {
   const provider = new AnchorProvider(connection, wallet as any, {
     commitment: "confirmed",
   });
-  return new Program(IDL as any, PROGRAM_ID, provider);
+  const idl = { ...IDL, address: PROGRAM_ID.toBase58() } as any;
+  return new Program(idl, provider);
 }
 
 export async function registerAgent(
@@ -148,7 +149,7 @@ export async function fetchAgent(
     if (!accountInfo) return null;
 
     // Parse account data
-    const program = new Program(IDL as any, PROGRAM_ID);
+    const program: any = new (Program as any)({...IDL, address: PROGRAM_ID.toBase58()} as any, {connection} as any);
     const agent: any = await program.account.agent.fetch(agentPda);
 
     return {
@@ -170,7 +171,7 @@ export async function fetchAgent(
 
 export async function fetchAllAgents(connection: Connection): Promise<AgentData[]> {
   try {
-    const program = new Program(IDL as any, PROGRAM_ID);
+    const program: any = new (Program as any)({...IDL, address: PROGRAM_ID.toBase58()} as any, {connection} as any);
     const accounts = await program.account.agent.all();
 
     return accounts.map((acc: any) => ({

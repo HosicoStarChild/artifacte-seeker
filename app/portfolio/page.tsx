@@ -146,31 +146,28 @@ export default function PortfolioPage() {
   }, [connected, publicKey, connection]);
 
   return (
-    <div className="bg-slate-950 min-h-screen pb-24 md:pb-8">
-      {/* Header */}
-      <div className="px-4 md:px-8 py-6 border-b border-yellow-600/20">
-        <p className="text-yellow-500 text-xs font-bold tracking-[0.2em] uppercase mb-2">Investor Profile</p>
-        <h1 className="font-serif text-3xl md:text-4xl text-white mb-2">My Portfolio</h1>
-        <p className="text-slate-400 text-sm">
+    <div className="pt-24 min-h-screen">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+        <p className="text-gold-400 text-xs font-bold tracking-[0.2em] uppercase mb-2">Investor Profile</p>
+        <h1 className="font-serif text-3xl text-white mb-2">My Portfolio</h1>
+        <p className="text-gray-400 text-sm mb-8">
           {connected ? `${publicKey!.toBase58().slice(0, 4)}...${publicKey!.toBase58().slice(-4)} — NFTs & RWAs` : "Connect your wallet to view your assets"}
         </p>
-      </div>
 
-      <div className="px-4 md:px-8 py-8">
         {!connected ? (
           <div className="flex flex-col items-center justify-center py-24 gap-6">
-            <div className="w-20 h-20 rounded-2xl bg-slate-900 border border-yellow-600/20 flex items-center justify-center">
-              <svg className="w-10 h-10 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-20 h-20 rounded-2xl bg-navy-800 border border-white/10 flex items-center justify-center">
+              <svg className="w-10 h-10 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3" />
               </svg>
             </div>
-            <p className="text-slate-400 text-sm text-center px-4">Connect your Solana wallet to view your NFTs and RWAs</p>
-            <WalletMultiButton className="!bg-yellow-500 hover:!bg-yellow-600 !rounded-lg !h-11 !text-sm !font-medium" />
+            <p className="text-gray-400 text-sm">Connect your Solana wallet to view your NFTs and RWAs</p>
+            <WalletMultiButton className="!bg-gold-500 hover:!bg-gold-600 !rounded-lg !h-10 !text-sm !font-medium" />
           </div>
         ) : loading && nfts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <div className="w-8 h-8 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-slate-400 text-sm">{progress || "Loading your assets..."}</p>
+            <div className="w-8 h-8 border-2 border-gold-400 border-t-transparent rounded-full animate-spin" />
+            <p className="text-gray-400 text-sm">{progress || "Loading your assets..."}</p>
           </div>
         ) : error ? (
           <div className="text-center py-24">
@@ -178,17 +175,17 @@ export default function PortfolioPage() {
           </div>
         ) : nfts.length === 0 && !loading ? (
           <div className="text-center py-24">
-            <p className="text-slate-400 text-sm">No NFTs found in this wallet</p>
+            <p className="text-gray-400 text-sm">No NFTs found in this wallet</p>
           </div>
         ) : (
           <>
-            <p className="text-slate-500 text-xs mb-6">
+            <p className="text-gray-500 text-xs mb-6">
               {nfts.length} asset{nfts.length !== 1 ? "s" : ""} {loading ? `(${progress})` : "found"}
             </p>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {nfts.map((nft) => (
-                <div key={nft.mint} className="bg-slate-900 rounded-xl border border-yellow-600/20 overflow-hidden hover:border-yellow-500/40 transition card-hover group">
-                  <div className="aspect-square overflow-hidden bg-slate-800">
+                <div key={nft.mint} className="bg-navy-800 rounded-xl border border-white/5 overflow-hidden card-hover group">
+                  <div className="aspect-square overflow-hidden bg-navy-900">
                     {nft.image ? (
                       <img src={nft.image} alt={nft.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
@@ -198,9 +195,9 @@ export default function PortfolioPage() {
                       <div className="w-full h-full flex items-center justify-center text-4xl">🖼️</div>
                     )}
                   </div>
-                  <div className="p-3">
-                    <h3 className="text-white font-semibold text-xs line-clamp-2">{nft.name}</h3>
-                    <p className="text-slate-500 text-[9px] mt-2 font-mono">{nft.mint.slice(0, 6)}...{nft.mint.slice(-4)}</p>
+                  <div className="p-4">
+                    <h3 className="text-white font-medium text-sm truncate">{nft.name}</h3>
+                    <p className="text-gray-600 text-[10px] mt-2 font-mono">{nft.mint.slice(0, 6)}...{nft.mint.slice(-4)}</p>
                   </div>
                 </div>
               ))}

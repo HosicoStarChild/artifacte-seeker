@@ -1,6 +1,7 @@
 import { assets, auctions, listings, formatFullPrice } from "@/lib/data";
 import AssetCard from "@/components/AssetCard";
 import AuctionCard from "@/components/AuctionCard";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import Link from "next/link";
 
 export default function Home() {
@@ -124,6 +125,7 @@ export default function Home() {
                     <div>
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h3 className="text-white font-medium">{l.name}</h3>
+                        <VerifiedBadge collectionName={l.name} />
                       </div>
                       <p className="text-gray-500 text-xs mb-3">{l.subtitle}</p>
                     </div>

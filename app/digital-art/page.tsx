@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import VerifiedBadge from "@/components/VerifiedBadge";
 
 const digitalArtPieces = [
   {
@@ -79,48 +80,51 @@ const digitalArtPieces = [
 
 export default function DigitalArtPage() {
   return (
-    <div className="bg-slate-950 min-h-screen pb-24 md:pb-8">
-      {/* Header */}
-      <div className="px-4 md:px-8 py-6 border-b border-yellow-600/20">
-        <p className="text-yellow-500 text-xs font-bold tracking-[0.2em] uppercase mb-2">
+    <div className="pt-24 pb-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <p className="text-gold-400 text-xs font-bold tracking-[0.2em] uppercase mb-2">
           Curated Collection
         </p>
-        <h1 className="font-serif text-3xl md:text-4xl text-white mb-2">Digital Art</h1>
-        <p className="text-slate-400 text-sm max-w-2xl">
-          Museum-quality digital artworks tokenized as NFTs on Solana
+        <h1 className="font-serif text-4xl text-white mb-2">Digital Art</h1>
+        <p className="text-gray-400 text-sm mb-10 max-w-2xl">
+          Museum-quality digital artworks tokenized as NFTs on Solana. Each piece is authenticated, 
+          verified, and backed by provenance records on-chain.
         </p>
-      </div>
 
-      <div className="px-4 md:px-8 py-6 md:py-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {digitalArtPieces.map((piece) => (
             <div
               key={piece.id}
-              className="bg-slate-900 rounded-xl border border-yellow-600/20 overflow-hidden hover:border-yellow-500/40 transition card-hover group"
+              className="bg-navy-800 rounded-xl border border-white/5 overflow-hidden card-hover group"
             >
-              <div className="aspect-square overflow-hidden bg-slate-800">
+              <div className="aspect-square overflow-hidden bg-navy-900">
                 <img
                   src={piece.image}
                   alt={piece.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                 />
               </div>
-              <div className="p-4">
-                <span className="text-[10px] font-bold tracking-widest text-purple-400 uppercase">
-                  Digital Art
-                </span>
-                <h3 className="text-white font-semibold mt-2 line-clamp-1">{piece.name}</h3>
-                <p className="text-slate-400 text-xs mt-1">by {piece.artist}</p>
-                <p className="text-slate-500 text-[10px] mt-2 line-clamp-2">{piece.description}</p>
-                <div className="mt-4 pt-4 border-t border-yellow-600/20">
-                  <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-1">Price</p>
-                  <p className="text-white font-bold text-lg mb-1">${piece.price.toLocaleString()}</p>
-                  <p className="text-yellow-500 text-xs mb-4">{piece.usd1Price.toLocaleString()} USD1</p>
+              <div className="p-5">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-[10px] font-bold tracking-widest text-purple-400 uppercase">
+                    Digital Art
+                  </span>
+                  <VerifiedBadge collectionName={piece.name} />
+                </div>
+                <h3 className="text-white font-medium mt-1">{piece.name}</h3>
+                <p className="text-gray-500 text-xs mt-0.5">by {piece.artist}</p>
+                <p className="text-gray-600 text-[10px] mt-1">{piece.description}</p>
+                <div className="flex items-center justify-between mt-4">
+                  <div>
+                    <p className="text-gray-500 text-[10px] uppercase tracking-wider">Price</p>
+                    <p className="text-white font-semibold">${piece.price.toLocaleString()}</p>
+                    <p className="text-gold-400 text-[10px]">{piece.usd1Price.toLocaleString()} USD1</p>
+                  </div>
                   <Link
                     href="/auctions"
-                    className="block w-full text-center px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-slate-900 rounded-lg text-xs font-bold transition touch-action-manipulation touch-target"
+                    className="px-4 py-2 bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-lg text-xs font-medium transition"
                   >
-                    Buy
+                    View
                   </Link>
                 </div>
               </div>

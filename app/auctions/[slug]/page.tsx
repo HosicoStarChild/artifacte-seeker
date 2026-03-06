@@ -1,12 +1,13 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { auctions, formatFullPrice, Bid, TREASURY_WALLET, USD1_MINT, USDC_MINT } from "@/lib/data";
+import { auctions, formatFullPrice, Bid } from "@/lib/data";
 import Countdown from "@/components/Countdown";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { Transaction, PublicKey } from "@solana/web3.js";
+import { Transaction, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { createTransferInstruction, getAssociatedTokenAddress } from "@solana/spl-token";
 
 const WalletMultiButton = dynamic(
@@ -14,10 +15,10 @@ const WalletMultiButton = dynamic(
   { ssr: false }
 );
 
-const TREASURY = new PublicKey(TREASURY_WALLET);
+const TREASURY = new PublicKey("DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX");
 const TOKENS: Record<string, { mint: PublicKey; decimals: number }> = {
-  USD1: { mint: new PublicKey(USD1_MINT), decimals: 6 },
-  USDC: { mint: new PublicKey(USDC_MINT), decimals: 6 },
+  USD1: { mint: new PublicKey("USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB"), decimals: 6 },
+  USDC: { mint: new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"), decimals: 6 },
 };
 
 export default function AuctionDetail() {
@@ -61,9 +62,11 @@ export default function AuctionDetail() {
     );
   }
 
+  const isDigitalArt = auction.category === "DIGITAL_ART";
   const allBids = [...localBids, ...auction.bids].sort((a, b) => b.amount - a.amount);
   const currentBid = allBids[0]?.amount ?? auction.start_price;
-  const minBid = currentBid + 100;
+  const minBid = currentBid + (isDigitalArt ? 1 : 100);
+  const currencyLabel = isDigitalArt ? "SOL" : currency;
 
   const handleBid = async () => {
     if (!publicKey || !connected) {
@@ -78,26 +81,28 @@ export default function AuctionDetail() {
     }
 
     if (usd1Amount < minBid) {
-      setBidStatus(`Minimum bid: ${formatFullPrice(minBid)} ${currency}`);
+      setBidStatus(`Minimum bid: ${minBid.toLocaleString()} ${currencyLabel}`);
       return;
     }
 
     try {
       setBidStatus("Submitting bid on-chain...");
 
-      const token = TOKENS[currency];
-      const tokenAmount = BigInt(Math.round(usd1Amount * 10 ** token.decimals));
-      const senderAta = await getAssociatedTokenAddress(token.mint, publicKey);
-      const treasuryAta = await getAssociatedTokenAddress(token.mint, TREASURY);
-
-      const tx = new Transaction().add(
-        createTransferInstruction(
-          senderAta,
-          treasuryAta,
-          publicKey,
-          tokenAmount,
-        )
-      );
+      let tx: Transaction;
+      if (isDigitalArt) {
+        const lamports = Math.round(usd1Amount * LAMPORTS_PER_SOL);
+        tx = new Transaction().add(
+          SystemProgram.transfer({ fromPubkey: publicKey, toPubkey: TREASURY, lamports })
+        );
+      } else {
+        const token = TOKENS[currency];
+        const tokenAmount = BigInt(Math.round(usd1Amount * 10 ** token.decimals));
+        const senderAta = await getAssociatedTokenAddress(token.mint, publicKey);
+        const treasuryAta = await getAssociatedTokenAddress(token.mint, TREASURY);
+        tx = new Transaction().add(
+          createTransferInstruction(senderAta, treasuryAta, publicKey, tokenAmount)
+        );
+      }
 
       const sig = await sendTransaction(tx, connection);
       await connection.confirmTransaction(sig, "confirmed");
@@ -112,7 +117,7 @@ export default function AuctionDetail() {
       setLocalBids((prev) => [newBid, ...prev]);
       setBidStatus(null);
       setBidUsd1("");
-      showToast(`✓ Bid of ${usd1Amount.toLocaleString()} USD1 placed! TX: ${sig.slice(0, 12)}...`, "success");
+      showToast(`✓ Bid of ${usd1Amount.toLocaleString()} ${currencyLabel} placed! TX: ${sig.slice(0, 12)}...`, "success");
 
       // Notify listings bot
       fetch("/api/listing-event", {
@@ -140,132 +145,121 @@ export default function AuctionDetail() {
         </div>
       )}
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
           {/* Image */}
-          <div>
-            <div className="rounded-2xl overflow-hidden border border-white/5">
-              <img src={auction.image} alt={auction.name} className="w-full h-[400px] object-cover" />
+          <div className="lg:col-span-2">
+            <div className="rounded-lg overflow-hidden border border-white/5 bg-dark-800">
+              <img src={auction.image} alt={auction.name} className="w-full h-[500px] object-cover" />
             </div>
           </div>
 
           {/* Details */}
           <div>
-            <p className="text-gold-400 text-xs font-bold tracking-[0.2em] uppercase mb-2">{auction.subtitle}</p>
-            <h1 className="font-serif text-3xl text-white mb-4">{auction.name}</h1>
-            <p className="text-gray-400 text-sm mb-6 leading-relaxed">{auction.description}</p>
+            {/* Header */}
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <p className="text-gold-500 text-xs font-semibold tracking-widest uppercase">{auction.subtitle}</p>
+              <VerifiedBadge collectionName={auction.name} showLabel={true} />
+            </div>
+            <h1 className="font-serif text-3xl md:text-4xl text-white mb-4 leading-tight">{auction.name}</h1>
+            <p className="text-gray-400 text-base mb-8 leading-relaxed">{auction.description}</p>
 
-            {/* Timer */}
-            <div className="bg-navy-800 rounded-xl border border-white/5 p-5 mb-6">
-              <div className="flex justify-between items-center mb-4">
+            {/* Current Bid & Timer Box */}
+            <div className="bg-dark-800 rounded-lg border border-white/5 p-8 mb-8">
+              <div className="grid grid-cols-2 gap-8 mb-8 pb-8 border-b border-white/5">
                 <div>
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider">Current Bid</p>
-                  <p className="text-white font-serif text-3xl">{formatFullPrice(currentBid)}</p>
-                  <p className="text-gold-400 text-xs">{currentBid.toLocaleString()} {currency}</p>
+                  <p className="text-gray-500 text-xs font-semibold tracking-widest uppercase mb-3">Current Bid</p>
+                  <p className="font-serif text-3xl text-white">{isDigitalArt ? `◎ ${currentBid.toLocaleString()}` : formatFullPrice(currentBid)}</p>
+                  <p className="text-gold-500 text-xs mt-2">{currentBid.toLocaleString()} {currencyLabel}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider">Ends In</p>
-                  <p className="text-gold-400 text-xl">
+                  <p className="text-gray-500 text-xs font-semibold tracking-widest uppercase mb-3">Ends In</p>
+                  <p className="font-serif text-3xl text-gold-500">
                     <Countdown endTime={auction.end_time} />
                   </p>
                 </div>
               </div>
 
               {/* Currency Toggle */}
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-gray-500 text-xs">Pay with:</span>
-                <div className="flex gap-1 bg-navy-900 rounded-lg p-0.5">
-                  {(["USD1", "USDC"] as const).map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setCurrency(c)}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition ${
-                        currency === c ? "bg-gold-500 text-navy-900" : "text-gray-400 hover:text-white"
-                      }`}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Bid Input */}
-              <div className="mb-2">
-                <label className="text-gray-400 text-xs mb-1 block">
-                  Bid Amount ({currency}) — min {formatFullPrice(minBid)} {currency}
-                </label>
-              </div>
-              <div className="flex gap-3">
-                <div className="flex-1 relative">
-                  <input
-                    type="number"
-                    step="1"
-                    placeholder={`Min: ${minBid.toLocaleString()} ${currency}`}
-                    value={bidUsd1}
-                    onChange={(e) => setBidUsd1(e.target.value)}
-                    className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:border-gold-500 focus:outline-none"
-                  />
-                </div>
-                {connected ? (
-                  <button
-                    onClick={handleBid}
-                    className="bg-gold-500 hover:bg-gold-600 text-navy-900 font-semibold px-6 py-3 rounded-lg text-sm transition"
-                  >
-                    Place Bid
-                  </button>
+              <div className="flex items-center gap-3 mb-6">
+                <span className="text-gray-500 text-xs font-medium">Pay with:</span>
+                {isDigitalArt ? (
+                  <span className="text-white text-sm font-medium bg-dark-900 px-4 py-2 rounded-lg border border-white/5">◎ SOL</span>
                 ) : (
-                  <WalletMultiButton className="!bg-gold-500 hover:!bg-gold-600 !rounded-lg !h-auto !py-3 !text-sm !font-semibold" />
+                  <div className="flex gap-2 bg-dark-900 rounded-lg p-1 border border-white/5">
+                    {(["USD1", "USDC"] as const).map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => setCurrency(c)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-200 ${
+                          currency === c ? "bg-gold-500 text-dark-900" : "text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
 
-              {bidStatus && (
-                <p className="mt-3 text-xs text-gray-400">{bidStatus}</p>
-              )}
-            </div>
-
-            {/* Price Chart */}
-            <div className="bg-navy-800 rounded-xl border border-white/5 p-5 mb-6">
-              <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-3">Bid History Chart</p>
-              <div className="h-32 flex items-end gap-1">
-                {allBids
-                  .slice(0, 10)
-                  .reverse()
-                  .map((b, i) => {
-                    const maxBid = Math.max(...allBids.map((x) => x.amount));
-                    const height = (b.amount / maxBid) * 100;
-                    return (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                        <div
-                          className="w-full bg-gradient-to-t from-gold-500/50 to-gold-400 rounded-t"
-                          style={{ height: `${height}%` }}
-                        />
-                      </div>
-                    );
-                  })}
+              {/* Bid Input */}
+              <div className="space-y-3">
+                <label className="text-gray-400 text-xs font-medium">
+                  Bid Amount ({currencyLabel}) — Minimum {minBid.toLocaleString()} {currencyLabel}
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    type="number"
+                    step={isDigitalArt ? "0.01" : "1"}
+                    placeholder={`Min: ${minBid.toLocaleString()} ${currencyLabel}`}
+                    value={bidUsd1}
+                    onChange={(e) => setBidUsd1(e.target.value)}
+                    className="flex-1 bg-dark-900 border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:border-gold-500 focus:outline-none transition-colors"
+                  />
+                  {connected ? (
+                    <button
+                      onClick={handleBid}
+                      className="bg-gold-500 hover:bg-gold-600 text-dark-900 font-semibold px-8 py-3 rounded-lg text-sm transition-colors duration-200"
+                    >
+                      Place Bid
+                    </button>
+                  ) : (
+                    <WalletMultiButton className="!bg-gold-500 hover:!bg-gold-600 !rounded-lg !h-auto !py-3 !px-8 !text-sm !font-semibold" />
+                  )}
+                </div>
+                {bidStatus && (
+                  <p className="text-xs text-gray-400">{bidStatus}</p>
+                )}
               </div>
             </div>
 
             {/* Bid History */}
-            <div className="bg-navy-800 rounded-xl border border-white/5 p-5">
-              <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-3">Bid History</p>
-              <div className="space-y-3 max-h-60 overflow-y-auto">
-                {allBids.map((b, i) => (
-                  <div key={i} className="flex justify-between items-center text-sm">
-                    <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full bg-navy-700 flex items-center justify-center text-[10px] text-gray-400">
-                        {i + 1}
+            <div className="bg-dark-800 rounded-lg border border-white/5 p-8">
+              <p className="text-gray-500 text-xs font-semibold tracking-widest uppercase mb-6">Bid History</p>
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {allBids.length === 0 ? (
+                  <p className="text-gray-600 text-xs">No bids yet. Be the first to bid!</p>
+                ) : (
+                  allBids.map((b, i) => (
+                    <div key={i} className="flex justify-between items-start pb-4 border-b border-white/5 last:border-b-0 last:pb-0">
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="w-8 h-8 rounded-full bg-dark-900 border border-white/5 flex items-center justify-center text-xs text-gray-400 font-medium flex-shrink-0">
+                          {i + 1}
+                        </div>
+                        <div>
+                          <p className="text-gray-300 font-mono text-xs">{b.bidder}</p>
+                          <p className="text-gray-600 text-xs mt-1">
+                            {new Date(b.time).toLocaleDateString()} at {new Date(b.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
                       </div>
-                      <span className="text-gray-300 font-mono text-xs">{b.bidder}</span>
+                      <div className="text-right">
+                        <p className="text-white font-semibold">{isDigitalArt ? `◎ ${b.amount.toLocaleString()}` : formatFullPrice(b.amount)}</p>
+                        <p className="text-gold-500 text-xs mt-1">{b.amount.toLocaleString()} {isDigitalArt ? "SOL" : "USD1"}</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-white font-medium">{formatFullPrice(b.amount)}</span>
-                      <p className="text-gold-400 text-[10px]">{b.amount.toLocaleString()} USD1</p>
-                      <p className="text-gray-600 text-[10px]">
-                        {new Date(b.time).toLocaleDateString()} {new Date(b.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
