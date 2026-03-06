@@ -41,6 +41,31 @@ export default function CategoryAuctionsPage() {
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [currency, setCurrency] = useState<"USD1" | "USDC">("USD1");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [filters, setFilters] = useState<Record<string, string>>({});
+
+  // Category-specific filter options
+  const categoryFilters: Record<string, { label: string; key: string; options: string[] }[]> = {
+    TCG_CARDS: [
+      { label: "TCG", key: "tcg", options: ["All", "One Piece", "Pokemon", "Dragon Ball Z", "Magic", "Yu-Gi-Oh"] },
+      { label: "Rarity", key: "rarity", options: ["All", "Common", "Rare", "Ultra Rare", "Secret Rare", "Alt Art", "Manga Alt Art"] },
+      { label: "Grade", key: "grade", options: ["All", "PSA 10", "PSA 9", "BGS 9.5", "BGS 10", "CGC 9", "CGC 10"] },
+      { label: "Language", key: "language", options: ["All", "EN", "JPN"] },
+    ],
+    SPIRITS: [
+      { label: "Type", key: "spiritType", options: ["All", "Bourbon", "Scotch", "Whisky", "Tequila", "Rum", "Cognac", "Wine"] },
+    ],
+    WATCHES: [
+      { label: "Brand", key: "brand", options: ["All", "Rolex", "Patek Philippe", "Audemars Piguet", "Omega", "Cartier", "Hublot", "Richard Mille"] },
+    ],
+    SPORTS_CARDS: [
+      { label: "Sport", key: "sport", options: ["All", "Baseball", "Basketball", "Football", "Soccer"] },
+      { label: "Grade", key: "grade", options: ["All", "PSA 10", "PSA 9", "BGS 9.5", "BGS 10", "SGC 10"] },
+      { label: "Brand", key: "brand", options: ["All", "Topps", "Panini", "Upper Deck"] },
+    ],
+    DIGITAL_ART: [
+      { label: "Collection", key: "collection", options: ["All", "SMB Gen 2", "SMB Gen 3", "Claynosaurz", "Galactic Gecko", "Famous Fox Federation", "Mad Lads", "Sensei"] },
+    ],
+  };
 
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ message, type });
@@ -193,6 +218,36 @@ export default function CategoryAuctionsPage() {
             </div>
           )}
         </div>
+
+        {/* Category Filters */}
+        {category && categoryFilters[category] && (
+          <div className="flex flex-wrap gap-3 mb-8">
+            {categoryFilters[category].map((filter) => (
+              <div key={filter.key} className="relative">
+                <select
+                  value={filters[filter.key] || "All"}
+                  onChange={(e) => setFilters({ ...filters, [filter.key]: e.target.value })}
+                  className="appearance-none bg-dark-800 border border-white/10 text-white text-sm rounded-lg px-4 py-2.5 pr-8 focus:border-gold-500 focus:outline-none transition-colors cursor-pointer hover:border-white/20"
+                >
+                  {filter.options.map((opt) => (
+                    <option key={opt} value={opt} className="bg-dark-900">
+                      {opt === "All" ? `${filter.label}: All` : opt}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 text-xs">▼</div>
+              </div>
+            ))}
+            {Object.values(filters).some((v) => v && v !== "All") && (
+              <button
+                onClick={() => setFilters({})}
+                className="text-gold-500 hover:text-gold-400 text-sm font-medium px-3 py-2 transition-colors"
+              >
+                Clear filters ✕
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Fixed Price Tab */}
         {tab === "fixed" && (
