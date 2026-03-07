@@ -68,6 +68,10 @@ export async function getAssetsByOwner(walletAddress: string): Promise<NFTAsset[
           ownerAddress: walletAddress,
           page: 1,
           limit: 1000,
+          displayOptions: {
+            showFungible: false,
+            showNativeBalance: false,
+          },
         },
       }),
     });
@@ -82,7 +86,37 @@ export async function getAssetsByOwner(walletAddress: string): Promise<NFTAsset[
       throw new Error(`Helius RPC error: ${data.error.message}`);
     }
 
-    return data.result?.items || [];
+    const items: NFTAsset[] = data.result?.items || [];
+    
+    // Filter: only show valid, non-burned, non-spam NFTs
+    return items.filter((item: any) => {
+      // Skip burned/redeemed assets
+      if (item.burnt === true) return false;
+      // Skip fungible tokens
+      if (item.interface === "FungibleToken" || item.interface === "FungibleAsset") return false;
+      // Must have content/metadata
+      if (!item.content?.metadata?.name) return false;
+      
+      // Skip Emporium TCG NFTs (platform shut down, cards are redeemed/frozen ghosts)
+      const EMPORIUM_AUTHORITY = "pokeWdogfsZSHgENrgEzax8U168X6ynBFkEKPvRUZsy";
+      const authority = item.authorities?.[0]?.address || "";
+      if (authority === EMPORIUM_AUTHORITY) return false;
+      // Block ALL compressed NFTs — they're almost always airdrop spam
+      if (item.compression?.compressed === true) return false;
+      
+      // Additional spam filter for non-compressed items
+      const name = (item.content.metadata.name || "").toLowerCase();
+      const SPAM_KEYWORDS = [
+        'airdrop', 'free', 'claim', 'lucky box', 'gift #', 'advisory',
+        'appsaga', '$bonk', 'get free', '.io ', '.com ', '.xyz ',
+        'reward', 'giveaway', 'congratulations', 'winner', 'coupon',
+        'redeem #', 'ticket', 'pass box', '$gift', '$jbox', 'drop',
+        'pump swap', 'bonker', 'vouch',
+      ];
+      if (SPAM_KEYWORDS.some(kw => name.includes(kw))) return false;
+      
+      return true;
+    });
   } catch (error) {
     console.error("Error fetching assets from Helius:", error);
     throw error;
