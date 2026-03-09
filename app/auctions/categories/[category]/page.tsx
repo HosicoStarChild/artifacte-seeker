@@ -46,6 +46,7 @@ export default function CategoryAuctionsPage() {
   const [currency, setCurrency] = useState<"USD1" | "USDC">("USD1");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
+  const [currencyFilter, setCurrencyFilter] = useState<"All" | "USDC" | "SOL">("All");
   const ITEMS_PER_PAGE = 24;
 
   // Category-specific filter options
@@ -248,6 +249,10 @@ export default function CategoryAuctionsPage() {
       }
     }
     return true;
+  }).filter((l: any) => {
+    if (currencyFilter === "All") return true;
+    const lCurrency = l.currency || (l.category === "DIGITAL_ART" ? "SOL" : "USDC");
+    return lCurrency === currencyFilter;
   });
 
   if (!category) {
@@ -311,29 +316,33 @@ export default function CategoryAuctionsPage() {
             </button>
           </div>
 
-          {/* Currency Selector - only for non-Digital Art categories */}
-          {!isDigitalArt && (
+          {/* Currency Filter */}
+          {category === "TCG_CARDS" || category === "SPORTS_CARDS" ? (
             <div className="flex items-center gap-3">
-              <span className="text-gray-500 text-xs font-medium tracking-wider">Pay with:</span>
+              <span className="text-gray-500 text-xs font-medium tracking-wider">Currency:</span>
               <div className="flex gap-2 bg-dark-800 rounded-lg p-1 border border-white/5">
-                {(["USD1", "USDC"] as const).map((c) => (
+                {(["All", "USDC", "SOL"] as const).map((c) => (
                   <button
                     key={c}
-                    onClick={() => setCurrency(c)}
+                    onClick={() => { setCurrencyFilter(c); setPage(1); }}
                     className={`px-4 py-2 rounded-md text-xs font-medium transition-colors duration-200 ${
-                      currency === c ? "bg-gold-500 text-dark-900" : "text-gray-400 hover:text-white"
+                      currencyFilter === c ? "bg-gold-500 text-dark-900" : "text-gray-400 hover:text-white"
                     }`}
                   >
-                    {c}
+                    {c === "SOL" ? "◎ SOL" : c}
                   </button>
                 ))}
               </div>
             </div>
-          )}
-          {isDigitalArt && (
+          ) : isDigitalArt ? (
             <div className="flex items-center gap-3">
-              <span className="text-gray-500 text-xs font-medium tracking-wider">Pay with:</span>
+              <span className="text-gray-500 text-xs font-medium tracking-wider">Currency:</span>
               <span className="text-white text-sm font-medium bg-dark-800 px-4 py-2 rounded-lg border border-white/5">◎ SOL</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <span className="text-gray-500 text-xs font-medium tracking-wider">Currency:</span>
+              <span className="text-white text-sm font-medium bg-dark-800 px-4 py-2 rounded-lg border border-white/5">USDC</span>
             </div>
           )}
         </div>
@@ -446,7 +455,7 @@ export default function CategoryAuctionsPage() {
                               <>
                                 <p className="text-white font-serif text-2xl">{formatFullPrice(l.price)}</p>
                                 <p className="text-gold-500 text-xs mt-1">
-                                  {usd1Amount} {currency}
+                                  {usd1Amount} USDC
                                 </p>
                                 {BAXUS_SELLER_FEE_ENABLED && l.verifiedBy === "BAXUS" && (
                                   <p className="text-gray-500 text-xs mt-1">+ {BAXUS_SELLER_FEE_PERCENT}% seller fee</p>
