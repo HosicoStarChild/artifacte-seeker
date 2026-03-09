@@ -5,41 +5,57 @@ import VerifiedBadge from "@/components/VerifiedBadge";
 import Link from "next/link";
 
 export default function Home() {
-  // Get featured auction (first one) for hero
-  const featured = auctions[0];
+  // Featured BAXUS listing for hero
+  const featuredBaxus = listings.find(l => l.source === 'baxus' && l.name?.toLowerCase().includes('pappy'));
+  const heroListing = featuredBaxus || listings.find(l => l.source === 'baxus');
 
   return (
     <div>
       {/* Hero Section */}
       <section className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          {featured && (
+          {heroListing && (
             <div className="relative rounded-lg overflow-hidden mb-16">
               {/* Hero Image */}
-              <div className="relative h-[500px] md:h-[600px] overflow-hidden group">
+              <div className="relative h-[500px] md:h-[600px] overflow-hidden group bg-dark-800">
                 <img
-                  src={featured.image}
-                  alt={featured.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition duration-700"
+                  src={heroListing.image}
+                  alt={heroListing.name}
+                  className="w-full h-full object-contain group-hover:scale-105 transition duration-700"
                 />
                 {/* Dark overlay gradient */}
-                <div className="absolute inset-0 bg-gradient-to-t from-dark-900 via-transparent to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-900/40 to-transparent" />
                 
                 {/* Content overlay */}
                 <div className="absolute bottom-0 left-0 right-0 p-8 md:p-12">
-                  <p className="text-gold-500 text-xs font-semibold tracking-widest uppercase mb-3">Featured Auction</p>
+                  <div className="flex items-center gap-2 mb-3">
+                    <p className="text-gold-500 text-xs font-semibold tracking-widest uppercase">Featured Listing</p>
+                    <span className="text-xs px-2 py-0.5 bg-gold-500/20 text-gold-400 rounded font-medium">BAXUS Verified</span>
+                  </div>
                   <h1 className="font-serif text-4xl md:text-5xl text-white mb-4 max-w-2xl leading-tight">
-                    {featured.name}
+                    {heroListing.name}
                   </h1>
-                  <p className="text-gray-300 text-base max-w-xl mb-6 leading-relaxed">
-                    {featured.description}
+                  <p className="text-gray-300 text-base max-w-xl mb-2 leading-relaxed">
+                    {heroListing.subtitle}
                   </p>
-                  <Link
-                    href={`/auctions/${featured.slug}`}
-                    className="inline-block px-8 py-3 bg-gold-500 hover:bg-gold-600 text-dark-900 rounded-lg font-semibold text-sm transition-colors duration-200"
-                  >
-                    Place a Bid →
-                  </Link>
+                  <p className="text-white font-serif text-3xl mb-6">{formatFullPrice(heroListing.price)}</p>
+                  {heroListing.externalUrl ? (
+                    <a
+                      href={heroListing.externalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block px-8 py-3 bg-gold-500 hover:bg-gold-600 text-dark-900 rounded-lg font-semibold text-sm transition-colors duration-200"
+                    >
+                      Buy on BAXUS →
+                    </a>
+                  ) : (
+                    <Link
+                      href="/auctions/categories/spirits"
+                      className="inline-block px-8 py-3 bg-gold-500 hover:bg-gold-600 text-dark-900 rounded-lg font-semibold text-sm transition-colors duration-200"
+                    >
+                      View Spirits →
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>
@@ -58,13 +74,12 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[
-                { name: "Digital Art", emoji: "🎨", slug: "digital-art" },
-                { name: "Spirits", emoji: "🥃", slug: "spirits" },
-                { name: "TCG Cards", emoji: "🃏", slug: "tcg-cards" },
-                { name: "Sports Cards", emoji: "⚽", slug: "sports-cards" },
-                { name: "Watches", emoji: "⌚", slug: "watches" },
+                { name: "Digital Art", emoji: "🎨", slug: "digital-art", href: "/digital-art" },
+                { name: "Spirits", emoji: "🥃", slug: "spirits", href: "/auctions/categories/spirits" },
+                { name: "TCG Cards", emoji: "🃏", slug: "tcg-cards", href: "/auctions/categories/tcg-cards" },
+                { name: "Sports Cards", emoji: "⚽", slug: "sports-cards", href: "/auctions/categories/sports-cards" },
               ].map((cat, i) => (
-                <Link key={i} href={`/auctions/categories/${cat.slug}`} className="group">
+                <Link key={i} href={cat.href} className="group">
                   <div className="bg-dark-800 rounded-lg border border-white/5 p-8 text-center card-hover h-full flex flex-col justify-center">
                     <div className="text-5xl mb-6">{cat.emoji}</div>
                     <h3 className="font-serif text-xl text-white mb-2">{cat.name}</h3>
@@ -89,37 +104,35 @@ export default function Home() {
               View All Auctions →
             </Link>
           </div>
-          <div className="overflow-x-auto pb-4 -mx-4 px-4">
-            <div className="flex gap-6 snap-x">
-              {auctions.slice(0, 5).map((a) => (
-                <div key={a.id} className="flex-shrink-0 w-80 snap-start">
-                  <AuctionCard auction={a} />
-                </div>
-              ))}
-            </div>
+          <div className="text-center py-16">
+            <p className="text-gray-400 text-lg font-serif">Coming Soon</p>
+            <p className="text-gray-500 text-sm mt-2">Live auctions are being prepared. Stay tuned.</p>
           </div>
         </div>
       </section>
 
-      {/* Recent Listings Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      {/* Spirits Section - BAXUS Bottles */}
+      <section className="bg-dark-800/30 border-t border-white/5 py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-12">
             <div>
-              <p className="text-gold-500 text-xs font-semibold tracking-widest uppercase mb-2">Fixed Price</p>
-              <h2 className="font-serif text-3xl md:text-4xl text-white">Available Now</h2>
+              <p className="text-gold-500 text-xs font-semibold tracking-widest uppercase mb-2">Premium Selection</p>
+              <h2 className="font-serif text-3xl md:text-4xl text-white">Fine Spirits 🥃</h2>
             </div>
+            <Link href="/auctions/categories/spirits" className="text-gold-500 hover:text-gold-400 text-sm font-medium transition">
+              View All →
+            </Link>
           </div>
           <div className="overflow-x-auto pb-4 -mx-4 px-4">
             <div className="flex gap-6 snap-x">
-              {listings.slice(0, 6).map((l) => (
+              {listings.filter(l => l.category === "SPIRITS").slice(0, 6).map((l) => (
                 <Link key={l.id} href={`/auctions?listing=${l.id}`} className="flex-shrink-0 w-80 snap-start group">
                   <div className="bg-dark-800 rounded-lg border border-white/5 overflow-hidden card-hover h-full flex flex-col">
                     <div className="aspect-square overflow-hidden bg-dark-900">
                       <img
                         src={l.image}
                         alt={l.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                        className="w-full h-full object-contain group-hover:scale-105 transition duration-500"
                       />
                     </div>
                     <div className="p-6 flex-1 flex flex-col justify-between">
@@ -129,13 +142,119 @@ export default function Home() {
                           <VerifiedBadge collectionName={l.name} verifiedBy={l.verifiedBy} />
                         </div>
                         <h3 className="text-white font-medium text-base mb-1">{l.name}</h3>
-                        <p className="text-gray-500 text-xs mb-1">{l.subtitle}{l.verifiedBy ? ` • ${l.verifiedBy} Verified` : ""}</p>
-                        <p className="text-gray-600 text-xs mb-4">{l.category?.replace(/_/g, " ")}</p>
+                        <p className="text-gray-500 text-xs mb-1">{l.subtitle}</p>
+                        <p className="text-gray-600 text-xs mb-4">{l.spirit_type}</p>
                       </div>
                       <div>
                         <p className="text-gray-500 text-xs font-medium tracking-wider mb-1">Price</p>
-                        <p className="text-white font-serif text-2xl">{l.category === "DIGITAL_ART" ? `◎ ${l.price.toLocaleString()}` : formatFullPrice(l.price)}</p>
-                        <p className="text-gold-500 text-xs mt-1">{l.price.toLocaleString()} {l.category === "DIGITAL_ART" ? "SOL" : "USD1"}</p>
+                        <p className="text-white font-serif text-2xl">{formatFullPrice(l.price)}</p>
+                        <p className="text-gold-500 text-xs mt-1">{l.price.toLocaleString()} USD1</p>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* One Piece TCG Highlights */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-12">
+            <div>
+              <p className="text-gold-500 text-xs font-semibold tracking-widest uppercase mb-2">Top Listings</p>
+              <h2 className="font-serif text-3xl md:text-4xl text-white">One Piece TCG 🏴‍☠️</h2>
+            </div>
+            <Link href="/auctions/categories/tcg-cards" className="text-gold-500 hover:text-gold-400 text-sm font-medium transition">
+              View All TCG →
+            </Link>
+          </div>
+          <div className="overflow-x-auto pb-4 -mx-4 px-4">
+            <div className="flex gap-6 snap-x">
+              {listings
+                .filter(l => l.source === 'collector-crypt' && (l as any).ccCategory === 'One Piece')
+                .sort((a, b) => b.price - a.price)
+                .slice(0, 8)
+                .map((l) => (
+                <Link key={l.id} href="/auctions/categories/tcg-cards" className="flex-shrink-0 w-72 snap-start group">
+                  <div className="bg-dark-800 rounded-lg border border-white/5 overflow-hidden card-hover h-full flex flex-col">
+                    <div className="aspect-square overflow-hidden bg-dark-900">
+                      <img
+                        src={l.image}
+                        alt={l.name}
+                        className="w-full h-full object-contain p-2 group-hover:scale-105 transition duration-500"
+                      />
+                    </div>
+                    <div className="p-5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <span className="text-xs font-semibold tracking-widest text-gold-500 uppercase">Fixed Price</span>
+                          <VerifiedBadge collectionName={l.name} verifiedBy={l.verifiedBy} />
+                        </div>
+                        <h3 className="text-white font-medium text-sm mb-1 line-clamp-2">{l.name}</h3>
+                        <p className="text-gray-500 text-xs mb-3">{l.subtitle}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs font-medium tracking-wider mb-1">Price</p>
+                        <p className="text-white font-serif text-xl">
+                          {(l as any).currency === 'SOL' ? `◎ ${l.price.toLocaleString()}` : `$${l.price.toLocaleString()}`}
+                        </p>
+                        <p className="text-gold-500 text-xs mt-1">{(l as any).currency}</p>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pokemon TCG Highlights */}
+      <section className="bg-dark-800/30 border-t border-white/5 py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-12">
+            <div>
+              <p className="text-gold-500 text-xs font-semibold tracking-widest uppercase mb-2">Top Listings</p>
+              <h2 className="font-serif text-3xl md:text-4xl text-white">Pokémon TCG ⚡</h2>
+            </div>
+            <Link href="/auctions/categories/tcg-cards" className="text-gold-500 hover:text-gold-400 text-sm font-medium transition">
+              View All TCG →
+            </Link>
+          </div>
+          <div className="overflow-x-auto pb-4 -mx-4 px-4">
+            <div className="flex gap-6 snap-x">
+              {listings
+                .filter(l => l.source === 'collector-crypt' && (l as any).ccCategory === 'Pokemon')
+                .sort((a, b) => b.price - a.price)
+                .slice(0, 10)
+                .map((l) => (
+                <Link key={l.id} href="/auctions/categories/tcg-cards" className="flex-shrink-0 w-72 snap-start group">
+                  <div className="bg-dark-800 rounded-lg border border-white/5 overflow-hidden card-hover h-full flex flex-col">
+                    <div className="aspect-square overflow-hidden bg-dark-900">
+                      <img
+                        src={l.image}
+                        alt={l.name}
+                        className="w-full h-full object-contain p-2 group-hover:scale-105 transition duration-500"
+                      />
+                    </div>
+                    <div className="p-5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <span className="text-xs font-semibold tracking-widest text-gold-500 uppercase">Fixed Price</span>
+                          <VerifiedBadge collectionName={l.name} verifiedBy={l.verifiedBy} />
+                        </div>
+                        <h3 className="text-white font-medium text-sm mb-1 line-clamp-2">{l.name}</h3>
+                        <p className="text-gray-500 text-xs mb-3">{l.subtitle}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs font-medium tracking-wider mb-1">Price</p>
+                        <p className="text-white font-serif text-xl">
+                          {(l as any).currency === 'SOL' ? `◎ ${l.price.toLocaleString()}` : `$${l.price.toLocaleString()}`}
+                        </p>
+                        <p className="text-gold-500 text-xs mt-1">{(l as any).currency}</p>
                       </div>
                     </div>
                   </div>

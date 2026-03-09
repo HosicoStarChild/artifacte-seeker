@@ -45,17 +45,19 @@ export default function CategoryAuctionsPage() {
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [currency, setCurrency] = useState<"USD1" | "USDC">("USD1");
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 24;
 
   // Category-specific filter options
   const categoryFilters: Record<string, { label: string; key: string; options: string[] }[]> = {
     TCG_CARDS: [
       { label: "TCG", key: "tcg", options: ["All", "One Piece", "Pokemon", "Dragon Ball Z", "Magic", "Yu-Gi-Oh"] },
       { label: "Rarity", key: "rarity", options: ["All", "Common", "Rare", "Ultra Rare", "Secret Rare", "Alt Art", "Manga Alt Art"] },
-      { label: "Grade", key: "grade", options: ["All", "PSA 10", "PSA 9", "BGS 9.5", "BGS 10", "CGC 9", "CGC 10"] },
+      { label: "Grade", key: "grade", options: ["All", "PSA 10", "PSA 9", "PSA 8", "BGS 9.5", "BGS 10", "CGC 10", "CGC 9.5", "CGC 9", "CGC 8"] },
       { label: "Language", key: "language", options: ["All", "EN", "JPN"] },
     ],
     SPIRITS: [
-      { label: "Type", key: "spiritType", options: ["All", "Bourbon", "Scotch", "Whisky", "Tequila", "Rum", "Cognac", "Wine"] },
+      { label: "Type", key: "spiritType", options: ["All", "Bourbon", "Rye", "Single Malt Whisky", "Blended Whisky", "American Whiskey", "Rum", "Tequila", "Cognac", "Wine"] },
     ],
     WATCHES: [
       { label: "Brand", key: "brand", options: ["All", "Rolex", "Patek Philippe", "Audemars Piguet", "Omega", "Cartier", "Hublot", "Richard Mille"] },
@@ -72,7 +74,7 @@ export default function CategoryAuctionsPage() {
 
   const isDigitalArt = category === "DIGITAL_ART";
 
-  const handleBuyNow = async (listingId: string, price: number, nftMint?: string) => {
+  const handleBuyNow = async (listingId: string, price: number, nftMint?: string, listing?: any) => {
     if (!connected || !publicKey) {
       showToast.error("Please connect your wallet first");
       return;
@@ -81,6 +83,54 @@ export default function CategoryAuctionsPage() {
     setBuyingId(listingId);
     try {
       let sig: string = "";
+
+      // Collector Crypt proxy buy flow
+      if (listing?.source === 'collector-crypt') {
+        let tx: Transaction;
+        const ccCurrency = listing.currency;
+
+        if (ccCurrency === 'SOL') {
+          const lamports = Math.round(price * LAMPORTS_PER_SOL);
+          tx = new Transaction().add(
+            SystemProgram.transfer({
+              fromPubkey: publicKey,
+              toPubkey: TREASURY,
+              lamports,
+            })
+          );
+        } else {
+          // USDC
+          const usdcMint = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+          const tokenAmount = BigInt(Math.round(price * 1e6));
+          const senderAta = await getAssociatedTokenAddress(usdcMint, publicKey);
+          const treasuryAta = await getAssociatedTokenAddress(usdcMint, TREASURY);
+          tx = new Transaction().add(
+            createTransferInstruction(senderAta, treasuryAta, publicKey, tokenAmount)
+          );
+        }
+
+        sig = await sendTransaction(tx, connection);
+        await connection.confirmTransaction(sig, "confirmed");
+
+        // Notify backend to fulfill the order
+        try {
+          await fetch('/api/cc-buy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ccId: listingId.replace('cc-', ''),
+              buyerWallet: publicKey.toBase58(),
+              paymentSignature: sig,
+            }),
+          });
+        } catch (apiErr) {
+          console.warn('CC buy API notification failed:', apiErr);
+        }
+
+        showToast.success(`✓ Payment confirmed! NFT will be transferred to your wallet shortly. TX: ${sig.slice(0, 12)}...`);
+        setBuyingId(null);
+        return;
+      }
 
       // Use AuctionProgram if listing has nftMint (real on-chain listing)
       if (nftMint && auctionProgram) {
@@ -155,7 +205,50 @@ export default function CategoryAuctionsPage() {
 
   // Filter auctions and listings by category
   const categoryAuctions = category ? auctions.filter((a) => a.category === category) : [];
-  const categoryListings = category ? listings.filter((l) => l.category === category) : [];
+  const categoryListingsBase = category ? listings.filter((l) => l.category === category) : [];
+
+  // Apply dropdown filters
+  const categoryListings = categoryListingsBase.filter((l: any) => {
+    for (const [key, value] of Object.entries(filters)) {
+      if (!value || value === "All") continue;
+      // Map filter keys to listing fields
+      if (key === "spiritType") {
+        const st = (l.spirit_type || l.subtitle || "").toLowerCase();
+        if (!st.includes(value.toLowerCase())) return false;
+      } else if (key === "brand") {
+        const name = (l.name || "").toLowerCase();
+        const sub = (l.subtitle || "").toLowerCase();
+        if (!name.includes(value.toLowerCase()) && !sub.includes(value.toLowerCase())) return false;
+      } else if (key === "tcg") {
+        const name = (l.name || "").toLowerCase() + " " + (l.subtitle || "").toLowerCase() + " " + ((l as any).ccCategory || "").toLowerCase();
+        const val = value.toLowerCase();
+        // Handle "Magic" matching "Magic The Gathering" and "Magic the Gathering"
+        if (val === "magic") {
+          if (!name.includes("magic")) return false;
+        } else if (val === "yu-gi-oh") {
+          if (!name.includes("yu-gi-oh") && !name.includes("yugioh")) return false;
+        } else {
+          if (!name.includes(val)) return false;
+        }
+      } else if (key === "rarity") {
+        const sub = (l.subtitle || "").toLowerCase();
+        if (!sub.includes(value.toLowerCase())) return false;
+      } else if (key === "grade") {
+        const sub = (l.subtitle || "").toLowerCase() + " " + ((l as any).grade || "").toLowerCase();
+        if (!sub.includes(value.toLowerCase())) return false;
+      } else if (key === "language") {
+        const sub = (l.subtitle || "").toLowerCase();
+        if (!sub.includes(value.toLowerCase())) return false;
+      } else if (key === "sport") {
+        const sub = (l.subtitle || "").toLowerCase();
+        if (!sub.includes(value.toLowerCase())) return false;
+      } else if (key === "collection") {
+        const sub = (l.subtitle || "").toLowerCase();
+        if (!sub.includes(value.toLowerCase())) return false;
+      }
+    }
+    return true;
+  });
 
   if (!category) {
     return (
@@ -252,7 +345,7 @@ export default function CategoryAuctionsPage() {
               <div key={filter.key} className="relative">
                 <select
                   value={filters[filter.key] || "All"}
-                  onChange={(e) => setFilters({ ...filters, [filter.key]: e.target.value })}
+                  onChange={(e) => { setFilters({ ...filters, [filter.key]: e.target.value }); setPage(1); }}
                   className="appearance-none bg-dark-800 border border-white/10 text-white text-sm rounded-lg px-4 py-2.5 pr-8 focus:border-gold-500 focus:outline-none transition-colors cursor-pointer hover:border-white/20"
                 >
                   {filter.options.map((opt) => (
@@ -266,7 +359,7 @@ export default function CategoryAuctionsPage() {
             ))}
             {Object.values(filters).some((v) => v && v !== "All") && (
               <button
-                onClick={() => setFilters({})}
+                onClick={() => { setFilters({}); setPage(1); }}
                 className="text-gold-500 hover:text-gold-400 text-sm font-medium px-3 py-2 transition-colors"
               >
                 Clear filters ✕
@@ -279,8 +372,33 @@ export default function CategoryAuctionsPage() {
         {tab === "fixed" && (
           <>
             {categoryListings.length > 0 ? (
+              <>
+              {categoryListings.length > ITEMS_PER_PAGE && (
+                <div className="flex items-center justify-between mb-6">
+                  <p className="text-gray-400 text-sm">{categoryListings.length.toLocaleString()} items</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { setPage(Math.max(1, page - 1)); window.scrollTo(0, 0); }}
+                      disabled={page === 1}
+                      className="px-3 py-1.5 bg-dark-800 border border-white/10 rounded text-sm text-white disabled:opacity-30 hover:border-gold-500 transition"
+                    >
+                      ← Prev
+                    </button>
+                    <span className="text-gray-400 text-sm px-2">
+                      Page {page} of {Math.ceil(categoryListings.length / ITEMS_PER_PAGE)}
+                    </span>
+                    <button
+                      onClick={() => { setPage(Math.min(Math.ceil(categoryListings.length / ITEMS_PER_PAGE), page + 1)); window.scrollTo(0, 0); }}
+                      disabled={page >= Math.ceil(categoryListings.length / ITEMS_PER_PAGE)}
+                      className="px-3 py-1.5 bg-dark-800 border border-white/10 rounded text-sm text-white disabled:opacity-30 hover:border-gold-500 transition"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                {categoryListings.map((l) => {
+                {categoryListings.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE).map((l) => {
                   const usd1Amount = l.price.toLocaleString();
                   return (
                     <div
@@ -292,7 +410,7 @@ export default function CategoryAuctionsPage() {
                         <img
                           src={l.image}
                           alt={l.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                          className={`w-full h-full ${l.source === 'collector-crypt' ? 'object-contain p-2' : 'object-cover'} group-hover:scale-105 transition duration-500`}
                         />
                       </div>
                       {/* Details */}
@@ -309,7 +427,17 @@ export default function CategoryAuctionsPage() {
                         <div className="space-y-4">
                           <div>
                             <p className="text-gray-500 text-xs font-medium tracking-wider mb-1">Price</p>
-                            {isDigitalArt ? (
+                            {l.source === 'collector-crypt' && (l as any).currency === 'SOL' ? (
+                              <>
+                                <p className="text-white font-serif text-2xl">◎ {l.price.toLocaleString()}</p>
+                                <p className="text-gold-500 text-xs mt-1">SOL</p>
+                              </>
+                            ) : l.source === 'collector-crypt' && (l as any).currency === 'USDC' ? (
+                              <>
+                                <p className="text-white font-serif text-2xl">${l.price.toLocaleString()}</p>
+                                <p className="text-gold-500 text-xs mt-1">USDC</p>
+                              </>
+                            ) : isDigitalArt ? (
                               <>
                                 <p className="text-white font-serif text-2xl">◎ {l.price.toLocaleString()}</p>
                                 <p className="text-gold-500 text-xs mt-1">SOL</p>
@@ -326,9 +454,18 @@ export default function CategoryAuctionsPage() {
                               </>
                             )}
                           </div>
-                          {connected ? (
+                          {l.source === 'baxus' && l.externalUrl ? (
+                            <a
+                              href={l.externalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full px-4 py-2.5 bg-gold-500 hover:bg-gold-600 text-dark-900 rounded-lg text-sm font-semibold transition-colors duration-200 text-center block"
+                            >
+                              Buy on BAXUS
+                            </a>
+                          ) : connected ? (
                             <button
-                              onClick={() => handleBuyNow(l.id, l.price, (l as any).nftMint)}
+                              onClick={() => handleBuyNow(l.id, l.price, (l as any).nftMint, l)}
                               disabled={buyingId === l.id}
                               className="w-full px-4 py-2.5 bg-gold-500 hover:bg-gold-600 disabled:opacity-50 text-dark-900 rounded-lg text-sm font-semibold transition-colors duration-200"
                             >
@@ -343,6 +480,28 @@ export default function CategoryAuctionsPage() {
                   );
                 })}
               </div>
+              {categoryListings.length > ITEMS_PER_PAGE && (
+                <div className="flex items-center justify-center gap-2 mt-10">
+                  <button
+                    onClick={() => { setPage(Math.max(1, page - 1)); window.scrollTo(0, 0); }}
+                    disabled={page === 1}
+                    className="px-4 py-2 bg-dark-800 border border-white/10 rounded text-sm text-white disabled:opacity-30 hover:border-gold-500 transition"
+                  >
+                    ← Prev
+                  </button>
+                  <span className="text-gray-400 text-sm px-4">
+                    Page {page} of {Math.ceil(categoryListings.length / ITEMS_PER_PAGE)}
+                  </span>
+                  <button
+                    onClick={() => { setPage(Math.min(Math.ceil(categoryListings.length / ITEMS_PER_PAGE), page + 1)); window.scrollTo(0, 0); }}
+                    disabled={page >= Math.ceil(categoryListings.length / ITEMS_PER_PAGE)}
+                    className="px-4 py-2 bg-dark-800 border border-white/10 rounded text-sm text-white disabled:opacity-30 hover:border-gold-500 transition"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+              </>
             ) : (
               <div className="text-center py-20">
                 <p className="text-gray-400 text-lg mb-4">No fixed price items available in this category</p>
