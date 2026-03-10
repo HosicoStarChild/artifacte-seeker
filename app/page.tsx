@@ -75,10 +75,12 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[
-                { name: "Digital Art", emoji: "🎨", slug: "digital-art", href: "/digital-art" },
+                { name: "Digital Collectibles", emoji: "🎨", slug: "digital-art", href: "/digital-art" },
                 { name: "Spirits", emoji: "🥃", slug: "spirits", href: "/auctions/categories/spirits" },
                 { name: "TCG Cards", emoji: "🃏", slug: "tcg-cards", href: "/auctions/categories/tcg-cards" },
                 { name: "Sports Cards", emoji: "⚽", slug: "sports-cards", href: "/auctions/categories/sports-cards" },
+                { name: "Sealed Product", emoji: "📦", slug: "sealed", href: "/auctions/categories/sealed" },
+                { name: "Merchandise", emoji: "🛍️", slug: "merchandise", href: "/auctions/categories/merchandise" },
               ].map((cat, i) => (
                 <Link key={i} href={cat.href} className="group">
                   <div className="bg-dark-800 rounded-lg border border-white/5 p-8 text-center card-hover h-full flex flex-col justify-center">
@@ -89,25 +91,6 @@ export default function Home() {
                 </Link>
               ))}
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Live Auctions Section */}
-      <section className="bg-dark-800/30 border-t border-white/5 py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-12">
-            <div>
-              <p className="text-gold-500 text-xs font-semibold tracking-widest uppercase mb-2">Active Auctions</p>
-              <h2 className="font-serif text-3xl md:text-4xl text-white">Live Now</h2>
-            </div>
-            <Link href="/auctions" className="text-gold-500 hover:text-gold-400 text-sm font-medium transition">
-              View All Auctions →
-            </Link>
-          </div>
-          <div className="text-center py-16">
-            <p className="text-gray-400 text-lg font-serif">Coming Soon</p>
-            <p className="text-gray-500 text-sm mt-2">Live auctions are being prepared. Stay tuned.</p>
           </div>
         </div>
       </section>
@@ -162,6 +145,25 @@ export default function Home() {
 
       {/* TCG Sections — fetched live from Magic Eden */}
       <HomeTCGSection />
+
+      {/* Live Auctions Section */}
+      <section className="bg-dark-800/30 border-t border-white/5 py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-12">
+            <div>
+              <p className="text-gold-500 text-xs font-semibold tracking-widest uppercase mb-2">Active Auctions</p>
+              <h2 className="font-serif text-3xl md:text-4xl text-white">Live Now</h2>
+            </div>
+            <Link href="/auctions" className="text-gold-500 hover:text-gold-400 text-sm font-medium transition">
+              View All Auctions →
+            </Link>
+          </div>
+          <div className="text-center py-16">
+            <p className="text-gray-400 text-lg font-serif">Coming Soon</p>
+            <p className="text-gray-500 text-sm mt-2">Live auctions are being prepared. Stay tuned.</p>
+          </div>
+        </div>
+      </section>
 
       {/* How It Works */}
       <section className="border-t border-white/5 py-20 px-4 sm:px-6 lg:px-8 bg-dark-800/20">

@@ -207,7 +207,7 @@ export default function ListNFTPage() {
           <p className="text-gold-400 text-xs font-bold tracking-[0.2em] uppercase mb-3">List NFT</p>
           <h1 className="font-serif text-4xl text-white mb-3">List Your Digital Collectible</h1>
           <p className="text-gray-400 text-base">
-            Select an NFT from an approved collection and set your price. Listings are reviewed before going live.
+            Select an NFT from an approved collection and set your price.
           </p>
         </div>
 
@@ -368,18 +368,6 @@ export default function ListNFTPage() {
                 </div>
               )}
 
-              {/* Description */}
-              <div className="mb-6">
-                <label className="block text-sm text-gray-400 mb-1.5 font-medium">Description (optional)</label>
-                <textarea
-                  rows={3}
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  className="w-full bg-dark-700 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-gold-500 transition resize-none"
-                  placeholder="Add any details about this NFT..."
-                />
-              </div>
-
               {/* Fee info */}
               <div className="bg-dark-700 rounded-lg p-4 mb-6 border border-white/5">
                 <p className="text-gray-400 text-xs font-medium mb-2">Fee Summary</p>
@@ -397,6 +385,7 @@ export default function ListNFTPage() {
                     {price ? `◎ ${(parseFloat(price) * 0.96).toFixed(2)}` : "—"}
                   </span>
                 </div>
+                <p className="text-gray-600 text-[10px] mt-3">Fees are only charged when your item sells. No sale, no fee.</p>
               </div>
 
               {/* Submit */}
@@ -409,10 +398,10 @@ export default function ListNFTPage() {
                     : "bg-gold-500 hover:bg-gold-600 text-dark-900"
                 }`}
               >
-                {submitting ? "Submitting..." : "Submit for Review"}
+                {submitting ? "Listing..." : "List Item"}
               </button>
               <p className="text-gray-600 text-xs text-center mt-3">
-                Your NFT stays in your wallet until the listing is approved and the escrow transaction is signed.
+                Your NFT stays in your wallet until the escrow transaction is signed.
               </p>
             </div>
           </div>
