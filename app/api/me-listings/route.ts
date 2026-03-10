@@ -7,16 +7,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
   // Forward all query params to Railway
-  const params = new URLSearchParams();
-  for (const [key, value] of searchParams.entries()) {
-    // Map 'q' search param
-    params.set(key, value);
-  }
+  const params = new URLSearchParams(searchParams.toString());
 
   try {
     const res = await fetch(`${ORACLE_API}/api/listings?${params}`, {
       signal: AbortSignal.timeout(15000),
-      next: { revalidate: 10 }, // ISR: revalidate every 10s
+      cache: 'no-store', // Don't cache — Railway is fast, each request has unique filters
     });
 
     if (!res.ok) {
