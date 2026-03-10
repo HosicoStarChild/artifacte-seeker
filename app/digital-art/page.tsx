@@ -18,7 +18,12 @@ export default function DigitalArtPage() {
     fetch("/api/admin/allowlist")
       .then(res => res.json())
       .then(data => {
-        setCollections(data.collections || []);
+        // Deduplicate by name (e.g. Quekz has old collection + new WNS authority)
+        const seen = new Map<string, Collection>();
+        for (const c of (data.collections || [])) {
+          if (!seen.has(c.name)) seen.set(c.name, c);
+        }
+        setCollections(Array.from(seen.values()));
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -27,6 +32,9 @@ export default function DigitalArtPage() {
   return (
     <div className="pt-24 pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <Link href="/" className="text-gold-500 hover:text-gold-400 text-sm font-medium transition mb-6 inline-block">
+          ← Back to Home
+        </Link>
         <p className="text-gold-400 text-xs font-bold tracking-[0.2em] uppercase mb-2">
           Curated Collections
         </p>

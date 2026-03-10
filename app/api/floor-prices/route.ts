@@ -11,6 +11,14 @@ const COLLECTION_MAP: Record<string, { symbol: string; name: string }> = {
   '1yPMtWU5aqcF72RdyRD5yipmcMRC8NGNK59NvYubLkZ': { symbol: 'saga', name: 'Claynosaurz: Call of Saga' },
   'J6RJFQfLgBTcoAt3KoZFiTFW9AbufsztBNDgZ7Znrp1Q': { symbol: 'galactic_geckos', name: 'Galactic Gecko' },
   'CjL5WpAmf4cMEEGwZGTfTDKWok9a92ykq9aLZrEK2D5H': { symbol: 'littleswagworld', name: 'little swag world' },
+  'BuAYoZPVwQw4AfeEpHTx6iGPbQtB27W7tJUjgyLzgiko': { symbol: 'quekz', name: 'Quekz' },
+  '2hwTMM3uWRvNny8YxSEKQkHZ8NHB5BRv7f35ccMWg1ay': { symbol: 'quekz', name: 'Quekz' },
+};
+
+// Tensor-only collections (not on ME) — manually updated floors
+const TENSOR_ONLY_FLOORS: Record<string, number> = {
+  'BuAYoZPVwQw4AfeEpHTx6iGPbQtB27W7tJUjgyLzgiko': 0.45, // Quekz (old)
+  '2hwTMM3uWRvNny8YxSEKQkHZ8NHB5BRv7f35ccMWg1ay': 0.45, // Quekz (WNS)
 };
 
 // Cache floor prices for 15 minutes
@@ -42,6 +50,11 @@ async function fetchFloorPrices(): Promise<Record<string, number>> {
       }
     })
   );
+
+  // Add Tensor-only floors as fallback
+  for (const [addr, floor] of Object.entries(TENSOR_ONLY_FLOORS)) {
+    if (!floors[addr]) floors[addr] = floor;
+  }
 
   cache = { data: floors, timestamp: Date.now() };
   return floors;
