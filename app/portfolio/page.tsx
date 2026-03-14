@@ -256,11 +256,11 @@ export default function PortfolioPage() {
     <div className="pt-24 min-h-screen bg-dark-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
         {/* Header */}
+        <a href="/" className="text-gold-400 hover:text-gold-300 text-sm mb-4 inline-block">← Back to Home</a>
         <p className="text-gold-400 text-xs font-bold tracking-[0.2em] uppercase mb-2">
           Investor Profile
         </p>
         <h1 className="font-serif text-3xl text-white mb-2">My Portfolio</h1>
-        <a href="/" className="text-gold-400 hover:text-gold-300 text-sm mb-4 inline-block">← Home</a>
         <p className="text-gray-400 text-sm mb-8">
           {connected
             ? `${publicKey!.toBase58().slice(0, 4)}...${publicKey!.toBase58().slice(-4)} — RWAs & Digital Collectibles`
@@ -364,7 +364,7 @@ export default function PortfolioPage() {
                 <div className="bg-dark-800 rounded-xl border border-white/5 p-5">
                   <p className="text-gray-500 text-[10px] font-semibold uppercase tracking-widest mb-2">Digital Collectibles</p>
                   <p className="font-serif text-2xl text-blue-400 font-bold">{digitalNfts.length}</p>
-                  <p className="text-gray-600 text-xs mt-1">0 listed · {digitalNfts.length} unlisted</p>
+                  <p className="text-gray-600 text-xs mt-1">In wallet</p>
                 </div>
 
                 {/* On Marketplace */}
@@ -491,8 +491,6 @@ export default function PortfolioPage() {
               {(
                 [
                   { value: "all" as FilterType, label: "All" },
-                  { value: "listed" as FilterType, label: "Listed" },
-                  { value: "unlisted" as FilterType, label: "Unlisted" },
                 ] as const
               ).map((tab) => (
                 <button

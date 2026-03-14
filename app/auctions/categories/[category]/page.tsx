@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { auctions, listings as staticListings, formatFullPrice, categorySlugMap, categoryLabels, BAXUS_SELLER_FEE_ENABLED, BAXUS_SELLER_FEE_PERCENT, Listing } from "@/lib/data";
 import AuctionCard from "@/components/AuctionCard";
 import VerifiedBadge from "@/components/VerifiedBadge";
@@ -20,7 +20,7 @@ const WalletMultiButton = dynamic(
   { ssr: false }
 );
 
-const TREASURY = new PublicKey("DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX");
+const TREASURY = new PublicKey("6drXw31FjHch4ixXa4ngTyUD2cySUs3mpcB2YYGA9g7P");
 const TOKENS: Record<string, { mint: PublicKey; decimals: number; label: string }> = {
   USD1: { mint: new PublicKey("USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB"), decimals: 6, label: "USD1" },
   USDC: { mint: new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"), decimals: 6, label: "USDC" },
@@ -33,6 +33,7 @@ const categoryEmojis: Record<string, string> = {
   "sports-cards": "⚽",
   "watches": "⌚",
   "sealed": "📦",
+  "merchandise": "🛍️",
 };
 
 export default function CategoryAuctionsPage() {
@@ -45,21 +46,84 @@ export default function CategoryAuctionsPage() {
   const auctionProgram = useAuctionProgram();
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [currency, setCurrency] = useState<"USD1" | "USDC">("USD1");
-  const [filters, setFilters] = useState<Record<string, string>>({});
-  const [page, setPage] = useState(1);
-  const [currencyFilter, setCurrencyFilter] = useState<"All" | "USDC" | "SOL">("All");
-  const [sortBy, setSortBy] = useState<"default" | "price-high" | "price-low" | "newest">("default");
-  const ITEMS_PER_PAGE = 12; // Mobile-optimized: 12 instead of 24
+  // URL search params (triggers re-render on change)
+  const urlSearchParams = useSearchParams();
+  const urlCcCategoryParam = urlSearchParams.get('ccCategory');
+  // Restore filters from sessionStorage on mount, with URL param override
+  const storageKey = `artifacte-filters-${categorySlug}`;
+  const [filters, setFilters] = useState<Record<string, string>>(() => {
+    if (typeof window === 'undefined') return {};
+    // URL param takes priority (e.g. ?ccCategory=Pokemon from homepage)
+    const urlCcCategory = new URLSearchParams(window.location.search).get('ccCategory');
+    if (urlCcCategory) {
+      // Map URL param to dropdown option values (must match exactly)
+      const reverseMap: Record<string, string> = {
+        'Pokemon': 'Pokemon', 'One Piece': 'One Piece',
+        'Yu-Gi-Oh': 'Yu-Gi-Oh', 'Dragon Ball': 'Dragon Ball Z', 'Lorcana': 'Lorcana',
+        'Magic': 'Magic', 'Magic: The Gathering': 'Magic',
+      };
+      const tcgVal = reverseMap[urlCcCategory] || urlCcCategory;
+      return { tcg: tcgVal };
+    }
+    try { return JSON.parse(sessionStorage.getItem(storageKey) || '{}'); } catch { return {}; }
+  });
+  const [page, setPage] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    try { return parseInt(sessionStorage.getItem(`${storageKey}-page`) || '1'); } catch { return 1; }
+  });
+  const [currencyFilter, setCurrencyFilter] = useState<"All" | "USDC" | "SOL">(() => {
+    if (typeof window === 'undefined') return "All";
+    try { return (sessionStorage.getItem(`${storageKey}-currency`) as any) || "All"; } catch { return "All"; }
+  });
+  const [sortBy, setSortBy] = useState<"default" | "price-high" | "price-low" | "newest">(() => {
+    if (typeof window === 'undefined') return "default";
+    try { return (sessionStorage.getItem(`${storageKey}-sort`) as any) || "default"; } catch { return "default"; }
+  });
+  const [searchInput, setSearchInput] = useState(() => {
+    if (typeof window === 'undefined') return "";
+    try { return sessionStorage.getItem(`${storageKey}-search`) || ""; } catch { return ""; }
+  });
+
+  // Sync URL ccCategory param → filter state (handles navigation between carousels)
+  useEffect(() => {
+    if (!urlCcCategoryParam) return;
+    const reverseMap: Record<string, string> = {
+      'Pokemon': 'Pokemon', 'One Piece': 'One Piece',
+      'Yu-Gi-Oh': 'Yu-Gi-Oh', 'Dragon Ball': 'Dragon Ball Z', 'Lorcana': 'Lorcana',
+      'Magic': 'Magic', 'Magic: The Gathering': 'Magic',
+    };
+    const tcgVal = reverseMap[urlCcCategoryParam] || urlCcCategoryParam;
+    if (filters.tcg !== tcgVal) {
+      setFilters({ tcg: tcgVal });
+      setPage(1);
+    }
+  }, [urlCcCategoryParam]);
+
+  // Persist filters to sessionStorage on change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify(filters));
+      sessionStorage.setItem(`${storageKey}-page`, String(page));
+      sessionStorage.setItem(`${storageKey}-currency`, currencyFilter);
+      sessionStorage.setItem(`${storageKey}-sort`, sortBy);
+      sessionStorage.setItem(`${storageKey}-search`, searchInput);
+    } catch {}
+  }, [filters, page, currencyFilter, sortBy, searchInput, storageKey]);
+  const searchTimer = useRef<NodeJS.Timeout>();
+  const ITEMS_PER_PAGE = 24;
   const [meListings, setMeListings] = useState<any[]>([]);
   const [meLoading, setMeLoading] = useState(true);
+  const [meFilterLoading, setMeFilterLoading] = useState(false);
   const [meTotal, setMeTotal] = useState(0);
 
   // Fetch from ME API for TCG and Sports cards
-  const useMeApi = category === "TCG_CARDS" || category === "SPORTS_CARDS" || category === "SEALED";
+  const useMeApi = category === "TCG_CARDS" || category === "SPORTS_CARDS" || category === "SEALED" || category === "MERCHANDISE";
 
   useEffect(() => {
     if (!useMeApi || !category) return;
-    setMeLoading(true);
+    // Only show full spinner on initial load; filter changes keep old results visible
+    if (meListings.length === 0) setMeLoading(true);
+    else setMeFilterLoading(true);
     // Server-side filtering + pagination
     const params = new URLSearchParams({
       category,
@@ -104,8 +168,9 @@ export default function CategoryAuctionsPage() {
         setMeListings(data.listings || []);
         setMeTotal(data.total || 0);
         setMeLoading(false);
+        setMeFilterLoading(false);
       })
-      .catch(() => setMeLoading(false));
+      .catch(() => { setMeLoading(false); setMeFilterLoading(false); });
   }, [useMeApi, category, filters, currencyFilter, page, sortBy]);
 
   // Use ME listings for TCG/Sports, static for everything else
@@ -352,7 +417,7 @@ export default function CategoryAuctionsPage() {
           <div className="flex gap-3 bg-dark-800 rounded-lg p-1 border border-white/5">
             <button
               onClick={() => setTab("fixed")}
-              className={`px-6 py-2.5 rounded-md text-sm font-medium transition-colors duration-200 min-h-12 ${
+              className={`px-6 py-2.5 rounded-md text-sm font-medium transition-colors duration-200 ${
                 tab === "fixed" ? "bg-gold-500 text-dark-900" : "text-gray-400 hover:text-white"
               }`}
             >
@@ -360,7 +425,7 @@ export default function CategoryAuctionsPage() {
             </button>
             <button
               onClick={() => setTab("live")}
-              className={`px-6 py-2.5 rounded-md text-sm font-medium transition-colors duration-200 min-h-12 ${
+              className={`px-6 py-2.5 rounded-md text-sm font-medium transition-colors duration-200 ${
                 tab === "live" ? "bg-gold-500 text-dark-900" : "text-gray-400 hover:text-white"
               }`}
             >
@@ -369,7 +434,7 @@ export default function CategoryAuctionsPage() {
           </div>
 
           {/* Currency Filter */}
-          {category === "TCG_CARDS" || category === "SPORTS_CARDS" || category === "SEALED" ? (
+          {category === "TCG_CARDS" || category === "SPORTS_CARDS" || category === "SEALED" || category === "MERCHANDISE" ? (
             <div className="flex items-center gap-3">
               <span className="text-gray-500 text-xs font-medium tracking-wider">Currency:</span>
               <div className="flex gap-2 bg-dark-800 rounded-lg p-1 border border-white/5">
@@ -377,7 +442,7 @@ export default function CategoryAuctionsPage() {
                   <button
                     key={c}
                     onClick={() => { setCurrencyFilter(c); setPage(1); }}
-                    className={`px-4 py-2 rounded-md text-xs font-medium transition-colors duration-200 min-h-10 ${
+                    className={`px-4 py-2 rounded-md text-xs font-medium transition-colors duration-200 ${
                       currencyFilter === c ? "bg-gold-500 text-dark-900" : "text-gray-400 hover:text-white"
                     }`}
                   >
@@ -399,6 +464,27 @@ export default function CategoryAuctionsPage() {
           )}
         </div>
 
+        {/* Search Bar */}
+        <div className="mb-6">
+          <div className="relative max-w-md">
+            <input
+              type="text"
+              placeholder="Search by name, set, number..."
+              value={searchInput}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSearchInput(val);
+                clearTimeout(searchTimer.current);
+                searchTimer.current = setTimeout(() => { setFilters(prev => ({ ...prev, search: val })); setPage(1); }, 400);
+              }}
+              className="w-full bg-dark-800 border border-white/10 text-white text-sm rounded-lg pl-10 pr-4 py-2.5 focus:border-gold-500 focus:outline-none transition-colors placeholder-gray-500"
+            />
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+        </div>
+
         {/* Category Filters */}
         {category && categoryFilters[category] && (
           <div className="flex flex-wrap gap-3 mb-8">
@@ -407,7 +493,7 @@ export default function CategoryAuctionsPage() {
                 <select
                   value={filters[filter.key] || "All"}
                   onChange={(e) => { setFilters({ ...filters, [filter.key]: e.target.value }); setPage(1); }}
-                  className="appearance-none bg-dark-800 border border-white/10 text-white text-sm rounded-lg px-4 py-2.5 pr-8 focus:border-gold-500 focus:outline-none transition-colors cursor-pointer hover:border-white/20 min-h-12"
+                  className="appearance-none bg-dark-800 border border-white/10 text-white text-sm rounded-lg px-4 py-2.5 pr-8 focus:border-gold-500 focus:outline-none transition-colors cursor-pointer hover:border-white/20"
                 >
                   {filter.options.map((opt) => (
                     <option key={opt} value={opt} className="bg-dark-900">
@@ -421,7 +507,7 @@ export default function CategoryAuctionsPage() {
             {Object.values(filters).some((v) => v && v !== "All") && (
               <button
                 onClick={() => { setFilters({}); setPage(1); }}
-                className="text-gold-500 hover:text-gold-400 text-sm font-medium px-3 py-2 transition-colors min-h-12"
+                className="text-gold-500 hover:text-gold-400 text-sm font-medium px-3 py-2 transition-colors"
               >
                 Clear filters ✕
               </button>
@@ -436,7 +522,7 @@ export default function CategoryAuctionsPage() {
             <select
               value={sortBy}
               onChange={(e) => { setSortBy(e.target.value as any); setPage(1); }}
-              className="appearance-none bg-dark-800 border border-white/10 text-white text-sm rounded-lg px-4 py-2.5 pr-8 focus:border-gold-500 focus:outline-none transition-colors cursor-pointer hover:border-white/20 min-h-12"
+              className="appearance-none bg-dark-800 border border-white/10 text-white text-sm rounded-lg px-4 py-2.5 pr-8 focus:border-gold-500 focus:outline-none transition-colors cursor-pointer hover:border-white/20"
             >
               <option value="default" className="bg-dark-900">Default</option>
               <option value="price-high" className="bg-dark-900">Price: High to Low</option>
@@ -467,7 +553,7 @@ export default function CategoryAuctionsPage() {
                     <button
                       onClick={() => { setPage(Math.max(1, page - 1)); window.scrollTo(0, 0); }}
                       disabled={page === 1}
-                      className="px-3 py-1.5 bg-dark-800 border border-white/10 rounded text-sm text-white disabled:opacity-30 hover:border-gold-500 transition min-h-10"
+                      className="px-3 py-1.5 bg-dark-800 border border-white/10 rounded text-sm text-white disabled:opacity-30 hover:border-gold-500 transition"
                     >
                       ← Prev
                     </button>
@@ -477,14 +563,14 @@ export default function CategoryAuctionsPage() {
                     <button
                       onClick={() => { setPage(Math.min(totalPages, page + 1)); window.scrollTo(0, 0); }}
                       disabled={page >= totalPages}
-                      className="px-3 py-1.5 bg-dark-800 border border-white/10 rounded text-sm text-white disabled:opacity-30 hover:border-gold-500 transition min-h-10"
+                      className="px-3 py-1.5 bg-dark-800 border border-white/10 rounded text-sm text-white disabled:opacity-30 hover:border-gold-500 transition"
                     >
                       Next →
                     </button>
                   </div>
                 </div>
               ) : null; })()}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 transition-opacity duration-200 ${meFilterLoading ? 'opacity-40' : ''}`}>
                 {(useMeApi ? categoryListings : categoryListings.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)).map((l) => {
                   const usd1Amount = l.price.toLocaleString();
                   return (
@@ -498,8 +584,8 @@ export default function CategoryAuctionsPage() {
                         <img
                           src={l.image}
                           alt={l.name}
-                          loading="lazy"
                           className={`w-full h-full ${l.source === 'collector-crypt' ? 'object-contain p-2' : 'object-cover'} group-hover:scale-105 transition duration-500`}
+                          onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-card.svg'; }}
                         />
                       </div>
                       </Link>
@@ -549,7 +635,7 @@ export default function CategoryAuctionsPage() {
                               href={l.externalUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="w-full px-4 py-2.5 bg-gold-500 hover:bg-gold-600 text-dark-900 rounded-lg text-sm font-semibold transition-colors duration-200 text-center block min-h-12 flex items-center justify-center"
+                              className="w-full px-4 py-2.5 bg-gold-500 hover:bg-gold-600 text-dark-900 rounded-lg text-sm font-semibold transition-colors duration-200 text-center block"
                             >
                               Buy on BAXUS
                             </a>
@@ -557,12 +643,12 @@ export default function CategoryAuctionsPage() {
                             <button
                               onClick={() => handleBuyNow(l.id, l.price, (l as any).nftMint, l)}
                               disabled={buyingId === l.id}
-                              className="w-full px-4 py-2.5 bg-gold-500 hover:bg-gold-600 disabled:opacity-50 text-dark-900 rounded-lg text-sm font-semibold transition-colors duration-200 min-h-12"
+                              className="w-full px-4 py-2.5 bg-gold-500 hover:bg-gold-600 disabled:opacity-50 text-dark-900 rounded-lg text-sm font-semibold transition-colors duration-200"
                             >
                               {buyingId === l.id ? "Processing..." : "Buy Now"}
                             </button>
                           ) : (
-                            <WalletMultiButton className="!w-full !bg-gold-500 hover:!bg-gold-600 !rounded-lg !h-12 !text-sm !font-semibold !min-h-12" />
+                            <WalletMultiButton className="!w-full !bg-gold-500 hover:!bg-gold-600 !rounded-lg !h-10 !text-sm !font-semibold" />
                           )}
                         </div>
                       </div>
@@ -578,7 +664,7 @@ export default function CategoryAuctionsPage() {
                   <button
                     onClick={() => { setPage(Math.max(1, page - 1)); window.scrollTo(0, 0); }}
                     disabled={page === 1}
-                    className="px-4 py-2 bg-dark-800 border border-white/10 rounded text-sm text-white disabled:opacity-30 hover:border-gold-500 transition min-h-10"
+                    className="px-4 py-2 bg-dark-800 border border-white/10 rounded text-sm text-white disabled:opacity-30 hover:border-gold-500 transition"
                   >
                     ← Prev
                   </button>
@@ -588,7 +674,7 @@ export default function CategoryAuctionsPage() {
                   <button
                     onClick={() => { setPage(Math.min(totalPages, page + 1)); window.scrollTo(0, 0); }}
                     disabled={page >= totalPages}
-                    className="px-4 py-2 bg-dark-800 border border-white/10 rounded text-sm text-white disabled:opacity-30 hover:border-gold-500 transition min-h-10"
+                    className="px-4 py-2 bg-dark-800 border border-white/10 rounded text-sm text-white disabled:opacity-30 hover:border-gold-500 transition"
                   >
                     Next →
                   </button>
@@ -598,8 +684,8 @@ export default function CategoryAuctionsPage() {
             ) : (
               <div className="text-center py-20">
                 <p className="text-gray-400 text-lg mb-4">No fixed price items available in this category</p>
-                <Link href="/auctions" className="text-gold-500 hover:text-gold-400 font-medium">
-                  View all auctions →
+                <Link href="/" className="text-gold-500 hover:text-gold-400 font-medium">
+                  Home →
                 </Link>
               </div>
             )}
@@ -618,8 +704,8 @@ export default function CategoryAuctionsPage() {
             ) : (
               <div className="text-center py-20">
                 <p className="text-gray-400 text-lg mb-4">No live auctions available in this category</p>
-                <Link href="/auctions" className="text-gold-500 hover:text-gold-400 font-medium">
-                  View all auctions →
+                <Link href="/" className="text-gold-500 hover:text-gold-400 font-medium">
+                  Home →
                 </Link>
               </div>
             )}

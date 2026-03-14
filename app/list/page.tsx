@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
+import { getAssociatedTokenAddress, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import Link from "next/link";
+import { AuctionProgram, ListingType, ItemCategory } from "@/lib/auction-program";
+import { showToast } from "@/components/ToastContainer";
 
 interface NFTAsset {
   id: string;
@@ -22,7 +26,8 @@ interface WhitelistStatus {
 }
 
 export default function ListNFTPage() {
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected, wallet } = useWallet();
+  const { connection } = useConnection();
   const [whitelistStatus, setWhitelistStatus] = useState<WhitelistStatus>({ walletOk: false, loading: true });
   const [nfts, setNfts] = useState<NFTAsset[]>([]);
   const [loadingNfts, setLoadingNfts] = useState(false);
@@ -35,6 +40,8 @@ export default function ListNFTPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [allowedCollections, setAllowedCollections] = useState<Record<string, string>>({});
+  const [royaltyBps, setRoyaltyBps] = useState<number>(0);
+  const [loadingRoyalty, setLoadingRoyalty] = useState(false);
 
   // Digital Art = collection gate only, no wallet whitelist needed
   useEffect(() => {
@@ -134,32 +141,43 @@ export default function ListNFTPage() {
   }
 
   async function handleSubmit() {
-    if (!selectedNft || !price || !publicKey) return;
+    if (!selectedNft || !price || !publicKey || !wallet) return;
     setSubmitting(true);
     setError("");
     try {
-      const collection = getNftCollection(selectedNft);
-      const res = await fetch("/api/listings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nftMint: selectedNft.id,
-          nftName: selectedNft.content?.metadata?.name || "Unknown",
-          nftImage: getNftImage(selectedNft),
-          collectionName: collection?.name || "Unknown",
-          collectionAddress: collection?.address || "",
-          seller: publicKey.toBase58(),
-          price: parseFloat(price),
-          listingType,
-          auctionDuration: listingType === "auction" ? parseInt(auctionDuration) : undefined,
-          description,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to submit");
+      const SOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
+      const nftMint = new PublicKey(selectedNft.id);
+      const priceInLamports = Math.floor(parseFloat(price) * 1e9);
+      const durationSeconds = listingType === "auction" ? parseInt(auctionDuration) * 3600 : undefined;
+
+      // Get user's NFT token account (detect Token-2022 vs standard SPL)
+      const mintAccountInfo = await connection.getAccountInfo(nftMint);
+      const isToken2022 = mintAccountInfo?.owner.equals(TOKEN_2022_PROGRAM_ID);
+      const sellerNftAccount = await getAssociatedTokenAddress(
+        nftMint, publicKey, false,
+        isToken2022 ? TOKEN_2022_PROGRAM_ID : undefined
+      );
+
+      const auctionProgram = new AuctionProgram(connection, wallet.adapter);
+
+      const tx = await auctionProgram.listItem(
+        nftMint,
+        sellerNftAccount,
+        SOL_MINT,
+        listingType === "auction" ? ListingType.Auction : ListingType.FixedPrice,
+        priceInLamports,
+        durationSeconds,
+        ItemCategory.DigitalArt
+      );
+
+      showToast.success("NFT listed successfully!");
       setSubmitted(true);
     } catch (err: any) {
-      setError(err.message);
+      console.error("Listing failed:", err);
+      const msg = err?.message || err?.toString() || "Unknown error";
+      const shortMsg = msg.length > 200 ? msg.slice(0, 200) + "..." : msg;
+      setError(shortMsg);
+      showToast.error(shortMsg);
     } finally {
       setSubmitting(false);
     }
@@ -200,9 +218,9 @@ export default function ListNFTPage() {
         <div className="max-w-2xl mx-auto px-4">
           <div className="bg-dark-800 border border-white/10 rounded-xl p-12 text-center">
             <div className="text-5xl mb-4">✅</div>
-            <h2 className="font-serif text-2xl text-white mb-2">Listing Submitted</h2>
+            <h2 className="font-serif text-2xl text-white mb-2">Listed Successfully</h2>
             <p className="text-gray-400 mb-6">
-              Your NFT listing is pending review. Once approved, it will go live on Artifacte and your NFT will be escrowed on-chain.
+              Your NFT is now listed on Artifacte and escrowed on-chain.
             </p>
             <button
               onClick={() => { setSubmitted(false); setSelectedNft(null); setPrice(""); setDescription(""); }}
@@ -223,6 +241,7 @@ export default function ListNFTPage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-10">
+          <Link href="/" className="text-gold-500 hover:text-gold-400 text-sm mb-4 inline-block">← Back to Home</Link>
           <p className="text-gold-400 text-xs font-bold tracking-[0.2em] uppercase mb-3">List NFT</p>
           <h1 className="font-serif text-4xl text-white mb-3">List Your Digital Collectible</h1>
           <p className="text-gray-400 text-base">
@@ -267,7 +286,26 @@ export default function ListNFTPage() {
                   return (
                     <button
                       key={nft.id}
-                      onClick={() => setSelectedNft(nft)}
+                      onClick={() => {
+                        setSelectedNft(nft);
+                        setLoadingRoyalty(true);
+                        fetch(`/api/nft?mint=${nft.id}`)
+                          .then(r => r.json())
+                          .then(data => {
+                            const asset = data.nft || data;
+                            const addlMeta = asset.mint_extensions?.metadata?.additional_metadata || [];
+                            for (const [key, value] of addlMeta) {
+                              if (key === 'royalty_basis_points') {
+                                setRoyaltyBps(parseInt(value) || 0);
+                                setLoadingRoyalty(false);
+                                return;
+                              }
+                            }
+                            setRoyaltyBps(asset.royalty?.basis_points || 0);
+                            setLoadingRoyalty(false);
+                          })
+                          .catch(() => { setRoyaltyBps(0); setLoadingRoyalty(false); });
+                      }}
                       className="bg-dark-800 border border-white/5 rounded-xl overflow-hidden text-left hover:border-gold-500/50 transition group"
                     >
                       <div className="aspect-square bg-dark-700 relative overflow-hidden">
@@ -396,12 +434,12 @@ export default function ListNFTPage() {
                 </div>
                 <div className="flex justify-between text-sm mt-1">
                   <span className="text-gray-500">Creator royalty</span>
-                  <span className="text-white">2%</span>
+                  <span className="text-white">{loadingRoyalty ? "..." : `${(royaltyBps / 100).toFixed(1)}%`}</span>
                 </div>
                 <div className="flex justify-between text-sm mt-1 pt-1 border-t border-white/5">
                   <span className="text-gray-500">You receive</span>
                   <span className="text-gold-400 font-semibold">
-                    {price ? `◎ ${(parseFloat(price) * 0.96).toFixed(2)}` : "—"}
+                    {price ? `◎ ${(parseFloat(price) * (1 - 0.02 - royaltyBps / 10000)).toFixed(2)}` : "—"}
                   </span>
                 </div>
                 <p className="text-gray-600 text-[10px] mt-3">Fees are only charged when your item sells. No sale, no fee.</p>

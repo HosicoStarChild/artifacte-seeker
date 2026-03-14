@@ -1,7 +1,8 @@
 // On-chain program constants
 export const AUCTION_PROGRAM_ID = "23fKEH3emeaJf1PW4Kts3exRnMjoNiqmqyFoNXH6qNiN";
 export const RWA_NFT_PROGRAM_ID = "F9mkXqMrgF1sSV3wDtTUpTs82B5XJ5qz9A33nBAdcNqb";
-export const TREASURY_WALLET = "DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX";
+export const TREASURY_WALLET = "6drXw31FjHch4ixXa4ngTyUD2cySUs3mpcB2YYGA9g7P";
+export const ADMIN_WALLET = "DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX";
 export const USD1_MINT = "USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB";
 export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
@@ -13,7 +14,7 @@ export const BAXUS_SELLER_FEE_PERCENT = 10;
 export type Category = 
   | "REAL_ESTATE" | "DIGITAL_ART" | "AGRICULTURE" 
   | "AVIATION" | "PRECIOUS_METALS" | "LUXURY" | "SPIRITS"
-  | "TCG_CARDS" | "SPORTS_CARDS" | "WATCHES" | "SEALED";
+  | "TCG_CARDS" | "SPORTS_CARDS" | "WATCHES" | "SEALED" | "MERCHANDISE";
 
 export interface Asset {
   id: string;
@@ -323,6 +324,7 @@ export const categoryColors: Record<Category, string> = {
   SPORTS_CARDS: "text-orange-400",
   WATCHES: "text-gold-400",
   SEALED: "text-emerald-400",
+  MERCHANDISE: "text-pink-400",
 };
 
 export const categoryLabels: Record<Category, string> = {
@@ -337,6 +339,7 @@ export const categoryLabels: Record<Category, string> = {
   SPORTS_CARDS: "SPORTS CARDS",
   WATCHES: "WATCHES",
   SEALED: "SEALED PRODUCT",
+  MERCHANDISE: "MERCHANDISE",
 };
 
 export const categorySlugMap: Record<string, Category> = {
@@ -346,6 +349,7 @@ export const categorySlugMap: Record<string, Category> = {
   "sports-cards": "SPORTS_CARDS",
   "watches": "WATCHES",
   "sealed": "SEALED",
+  "merchandise": "MERCHANDISE",
 };
 
 export function formatPrice(n: number): string {

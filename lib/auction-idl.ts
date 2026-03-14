@@ -1,4 +1,5 @@
-export const IDL = {
+export const IDL =
+{
   "address": "81s1tEx4MPdVvqS6X84Mok5K4N5fMbRLzcsT5eo2K8J3",
   "metadata": {
     "name": "auction",
@@ -9,7 +10,11 @@ export const IDL = {
     {
       "name": "buy_now",
       "docs": [
-        "Buy a fixed-price listing immediately"
+        "Buy a fixed-price listing immediately",
+        "",
+        "For WNS/Token-2022 NFTs: client MUST include WNS `approve_transfer` IX",
+        "(amount=0) BEFORE this instruction in the same transaction.",
+        "remaining_accounts: same layout as list_item"
       ],
       "discriminator": [
         242,
@@ -27,8 +32,35 @@ export const IDL = {
           "writable": true
         },
         {
+          "name": "nft_mint"
+        },
+        {
           "name": "escrow_nft",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119,
+                  95,
+                  110,
+                  102,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing.nft_mint",
+                "account": "Listing"
+              }
+            ]
+          }
         },
         {
           "name": "buyer_payment_account",
@@ -56,6 +88,9 @@ export const IDL = {
           "signer": true
         },
         {
+          "name": "nft_token_program"
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -69,7 +104,10 @@ export const IDL = {
     {
       "name": "cancel_listing",
       "docs": [
-        "Cancel a listing (seller only, auctions only if no bids)"
+        "Cancel a listing (seller only, auctions only if no bids)",
+        "",
+        "For WNS/Token-2022: client MUST include WNS `approve_transfer` (amount=0)",
+        "remaining_accounts: same layout as list_item"
       ],
       "discriminator": [
         41,
@@ -87,8 +125,35 @@ export const IDL = {
           "writable": true
         },
         {
+          "name": "nft_mint"
+        },
+        {
           "name": "escrow_nft",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119,
+                  95,
+                  110,
+                  102,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing.nft_mint",
+                "account": "Listing"
+              }
+            ]
+          }
         },
         {
           "name": "seller_nft_account",
@@ -99,8 +164,7 @@ export const IDL = {
           "signer": true
         },
         {
-          "name": "token_program",
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+          "name": "nft_token_program"
         }
       ],
       "args": []
@@ -108,7 +172,14 @@ export const IDL = {
     {
       "name": "list_item",
       "docs": [
-        "List an item for sale (either fixed price or auction)"
+        "List an item for sale (either fixed price or auction)",
+        "",
+        "For WNS/Token-2022 NFTs: client MUST include a WNS `approve_transfer` IX",
+        "(amount=0) BEFORE this instruction in the same transaction.",
+        "remaining_accounts for Token-2022:",
+        "[0] extra_metas_account PDA (readonly) - seeds: [\"extra-account-metas\", nft_mint]",
+        "[1] approve_account PDA (writable) - seeds: [\"approve-account\", nft_mint]",
+        "[2] wns_program (readonly)"
       ],
       "discriminator": [
         174,
@@ -188,6 +259,9 @@ export const IDL = {
           "signer": true
         },
         {
+          "name": "nft_token_program"
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -222,13 +296,21 @@ export const IDL = {
               "name": "ItemCategory"
             }
           }
+        },
+        {
+          "name": "royalty_basis_points",
+          "type": "u16"
+        },
+        {
+          "name": "creator_address",
+          "type": "pubkey"
         }
       ]
     },
     {
       "name": "place_bid",
       "docs": [
-        "Place a bid on an active auction"
+        "Place a bid on an active auction (payment tokens only, no NFT transfer)"
       ],
       "discriminator": [
         238,
@@ -305,7 +387,10 @@ export const IDL = {
     {
       "name": "settle_auction",
       "docs": [
-        "Settle an auction after end time"
+        "Settle an auction after end time",
+        "",
+        "For WNS/Token-2022: client MUST include WNS `approve_transfer` (amount=0)",
+        "remaining_accounts: same layout as list_item"
       ],
       "discriminator": [
         246,
@@ -323,12 +408,63 @@ export const IDL = {
           "writable": true
         },
         {
+          "name": "nft_mint"
+        },
+        {
           "name": "bid_escrow",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing.nft_mint",
+                "account": "Listing"
+              }
+            ]
+          }
         },
         {
           "name": "escrow_nft",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119,
+                  95,
+                  110,
+                  102,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing.nft_mint",
+                "account": "Listing"
+              }
+            ]
+          }
         },
         {
           "name": "seller_payment_account",
@@ -349,6 +485,9 @@ export const IDL = {
         {
           "name": "seller_nft_account",
           "writable": true
+        },
+        {
+          "name": "nft_token_program"
         },
         {
           "name": "token_program",
@@ -512,6 +651,16 @@ export const IDL = {
       "code": 6010,
       "name": "InvalidPaymentMint",
       "msg": "Invalid payment mint for this category"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidPrice",
+      "msg": "Price must be greater than zero"
+    },
+    {
+      "code": 6012,
+      "name": "InsufficientWNSAccounts",
+      "msg": "Insufficient WNS remaining accounts for Token-2022 transfer"
     }
   ],
   "types": [
@@ -700,6 +849,22 @@ export const IDL = {
             "type": "pubkey"
           },
           {
+            "name": "baxus_fee",
+            "type": "bool"
+          },
+          {
+            "name": "is_token2022",
+            "type": "bool"
+          },
+          {
+            "name": "royalty_basis_points",
+            "type": "u16"
+          },
+          {
+            "name": "creator_address",
+            "type": "pubkey"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
@@ -798,4 +963,4 @@ export const IDL = {
       }
     }
   ]
-};
+} as const;

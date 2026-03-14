@@ -6,8 +6,7 @@ import Link from "next/link";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useConnection } from "@solana/wallet-adapter-react";
-import { PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { createTransferInstruction, getAssociatedTokenAddress } from "@solana/spl-token";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import dynamic from "next/dynamic";
 import { showToast } from "@/components/ToastContainer";
 import PriceHistory from "@/components/PriceHistory";
@@ -17,7 +16,8 @@ const WalletMultiButton = dynamic(
   { ssr: false }
 );
 
-const TREASURY = new PublicKey("DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX");
+// Treasury wallet for platform fees
+const TREASURY_WALLET = new PublicKey("6drXw31FjHch4ixXa4ngTyUD2cySUs3mpcB2YYGA9g7P");
 
 export default function CardDetailPage() {
   const params = useParams();
@@ -43,53 +43,53 @@ export default function CardDetailPage() {
 
   const handleBuy = async () => {
     if (!connected || !publicKey || !card) return;
+    if (!card.nftAddress) {
+      showToast.error("NFT mint address not available");
+      return;
+    }
     setBuying(true);
 
     try {
-      let tx: Transaction;
+      // Step 1: Ask our API to build the full transaction
+      showToast.info("Building transaction...");
+      
+      const buildRes = await fetch('/api/me-buy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mint: card.nftAddress,
+          buyer: publicKey.toBase58(),
+        }),
+      });
 
-      if (card.currency === 'SOL') {
-        const lamports = Math.round(card.price * LAMPORTS_PER_SOL);
-        tx = new Transaction().add(
-          SystemProgram.transfer({
-            fromPubkey: publicKey,
-            toPubkey: TREASURY,
-            lamports,
-          })
-        );
-      } else {
-        const usdcMint = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-        const tokenAmount = BigInt(Math.round(card.price * 1e6));
-        const senderAta = await getAssociatedTokenAddress(usdcMint, publicKey);
-        const treasuryAta = await getAssociatedTokenAddress(usdcMint, TREASURY);
-        tx = new Transaction().add(
-          createTransferInstruction(senderAta, treasuryAta, publicKey, tokenAmount)
-        );
+      if (!buildRes.ok) {
+        const errData = await buildRes.json();
+        throw new Error(errData.error || 'Failed to build transaction');
       }
 
+      const { transaction: txBase64, price, fee } = await buildRes.json();
+      
+      // Step 2: Deserialize and send for signing
+      const txBytes = Buffer.from(txBase64, 'base64');
+      const tx = Transaction.from(txBytes);
+
+      showToast.info(`💳 Confirm in wallet — ${price} SOL + ${fee.toFixed(4)} SOL fee`);
+      
       const sig = await sendTransaction(tx, connection);
+      
+      showToast.info("⏳ Confirming transaction...");
       await connection.confirmTransaction(sig, "confirmed");
 
-      try {
-        await fetch('/api/cc-buy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ccId: card.ccId,
-            buyerWallet: publicKey.toBase58(),
-            paymentSignature: sig,
-          }),
-        });
-      } catch {}
-
-      showToast.success(`✓ Payment confirmed! NFT will be transferred shortly. TX: ${sig.slice(0, 12)}...`);
+      showToast.success(`✅ NFT purchased! TX: ${sig.slice(0, 16)}...`);
     } catch (err: any) {
       if (err.message?.includes("User rejected")) {
-        showToast.error("Transaction rejected");
+        showToast.error("Transaction cancelled");
       } else if (err.message?.includes("insufficient")) {
-        showToast.error(`Insufficient balance`);
+        showToast.error("Insufficient balance");
+      } else if (err.message?.includes("No active listing")) {
+        showToast.error("This item is no longer available");
       } else {
-        showToast.error(`Error: ${(err.message || "").slice(0, 80)}`);
+        showToast.error(`Error: ${(err.message || "").slice(0, 100)}`);
       }
     } finally {
       setBuying(false);
@@ -128,23 +128,21 @@ export default function CardDetailPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
         <div className="mb-8">
-          <Link href={`/auctions/categories/${
-            card.category === 'MERCHANDISE' ? 'merchandise' :
-            card.category === 'SEALED' ? 'sealed' :
-            card.category === 'SPORTS_CARDS' ? 'sports-cards' :
-            'tcg-cards'
-          }`} className="text-gold-500 hover:text-gold-400 text-sm font-medium transition">
-            ← Back to {card.category === 'MERCHANDISE' ? 'Merchandise' : card.category === 'SEALED' ? 'Sealed Product' : card.category === 'SPORTS_CARDS' ? 'Sports Cards' : (card.ccCategory || 'TCG Cards')}
-          </Link>
+          <button
+            onClick={() => window.history.back()}
+            className="text-gold-500 hover:text-gold-400 text-sm font-medium transition cursor-pointer"
+          >
+            ← Back to {card.category === 'MERCHANDISE' ? 'Merchandise' : card.category === 'SEALED' ? 'Sealed Product' : card.category === 'SPORTS_CARDS' ? 'Sports Cards' : 'TCG Cards'}
+          </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Left: Image */}
-          <div className="bg-dark-800 rounded-xl border border-white/5 p-6 flex items-center justify-center">
+          <div className="bg-dark-800 rounded-xl border border-white/5 p-6 flex items-start justify-center self-start lg:sticky lg:top-28">
             <img
               src={card.image}
               alt={card.name}
-              className="max-h-[600px] w-auto object-contain rounded-lg"
+              className="max-h-[500px] w-auto object-contain rounded-lg"
               onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-card.svg'; }}
             />
           </div>
@@ -174,11 +172,10 @@ export default function CardDetailPage() {
 
               {connected ? (
                 <button
-                  onClick={handleBuy}
-                  disabled={buying}
-                  className="w-full px-6 py-3.5 bg-gold-500 hover:bg-gold-600 disabled:opacity-50 text-dark-900 rounded-lg text-base font-semibold transition-colors duration-200"
+                  disabled
+                  className="w-full px-6 py-3.5 bg-gold-500/50 text-dark-900/50 rounded-lg text-base font-semibold cursor-not-allowed"
                 >
-                  {buying ? "Processing..." : "Buy Now"}
+                  Buy Now — Coming Soon
                 </button>
               ) : (
                 <WalletMultiButton className="!w-full !bg-gold-500 hover:!bg-gold-600 !rounded-lg !h-12 !text-base !font-semibold" />
@@ -294,6 +291,7 @@ export default function CardDetailPage() {
               category={card.category} 
               grade={card.gradingCompany && card.gradeNum ? `${card.gradingCompany} ${card.gradeNum}` : undefined}
               year={card.year}
+              nftAddress={card.nftAddress}
             />
             )}
 
