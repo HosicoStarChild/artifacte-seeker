@@ -178,64 +178,6 @@ export const auctions: Auction[] = [
       { bidder: "4jP1...xS5c", amount: 215000, time: new Date(now - 43200000).toISOString() },
     ],
   },
-  {
-    id: "a3", slug: "rare-whisky-cask",
-    name: "Macallan 1990 Sherry Cask",
-    subtitle: "RARE SPIRITS COLLECTION",
-    verifiedBy: "BAXUS", category: "SPIRITS", current_bid: 98500, start_price: 65000,
-    end_time: new Date(now + 3 * day).toISOString(),
-    image: "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=800",
-    description: "Single cask Macallan 1990 vintage matured in first-fill Oloroso sherry butt. Cask #4567, yielding approximately 580 bottles. Stored in bonded warehouse.",
-    bids: [
-      { bidder: "6hM4...wK2d", amount: 98500, time: new Date(now - 5400000).toISOString() },
-      { bidder: "1tR9...pV7e", amount: 92000, time: new Date(now - 21600000).toISOString() },
-      { bidder: "7xK9...mP2q", amount: 85000, time: new Date(now - 57600000).toISOString() },
-    ],
-  },
-  {
-    id: "a8", slug: "blantons-1984-first-release",
-    name: "Blanton's 1984 Bottling First Release",
-    subtitle: "ULTRA-RARE BOURBON",
-    verifiedBy: "BAXUS", category: "SPIRITS", current_bid: 11200, start_price: 8000,
-    end_time: new Date(now + 5 * day).toISOString(),
-    image: "/blantons-1984.webp",
-    description: "Blanton's 1984 Bottling First Release — one of the rarest bourbons in existence. First single barrel bourbon ever marketed. BAXUS authenticated and tokenized on Solana. NFT: AzvtfyKNpYcgavoYND9dGUBonbJR5DZeCEyX7UG7qvm2",
-    bids: [
-      { bidder: "Sin✨...c502", amount: 11200, time: new Date(now - 3600000).toISOString() },
-      { bidder: "7xK9...mP2q", amount: 10500, time: new Date(now - 14400000).toISOString() },
-      { bidder: "4fG2...nR8w", amount: 9800, time: new Date(now - 43200000).toISOString() },
-    ],
-  },
-  {
-    id: "a4", slug: "picasso-lithograph",
-    name: "Pablo Picasso Original Lithograph",
-    subtitle: "FINE ART MASTERS",
-    verifiedBy: "Metaplex", category: "DIGITAL_ART", current_bid: 385, start_price: 250,
-    end_time: new Date(now + 7 * day).toISOString(),
-    image: "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800",
-    description: "Original lithograph by Pablo Picasso, 'Le Repos' (1952). Signed and numbered 23/50. Provenance: Christie's New York. Museum-quality framing.",
-    bids: [
-      { bidder: "3nR5...vL8w", amount: 385, time: new Date(now - 900000).toISOString() },
-      { bidder: "9pT2...hJ4x", amount: 350, time: new Date(now - 36000000).toISOString() },
-      { bidder: "5mQ8...bN1y", amount: 310, time: new Date(now - 72000000).toISOString() },
-      { bidder: "2kL7...qR9z", amount: 280, time: new Date(now - 86400000).toISOString() },
-      { bidder: "8wN3...tF6a", amount: 260, time: new Date(now - 172800000).toISOString() },
-    ],
-  },
-  // TCG and Sports Card auctions removed — real CC listings now
-  {
-    id: "a7", slug: "rolex-submariner-gold",
-    name: "Rolex Submariner Date Gold",
-    subtitle: "LUXURY WATCHES",
-    verifiedBy: "Chrono24", category: "WATCHES", current_bid: 45000, start_price: 32000,
-    end_time: new Date(now + 8 * day).toISOString(),
-    image: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=800",
-    description: "Rolex Submariner Date 16613 in 18K yellow gold. 1995 vintage. Excellent condition with original dial and hands. Complete with box and papers.",
-    bids: [
-      { bidder: "6pK1...jM9a", amount: 45000, time: new Date(now - 900000).toISOString() },
-      { bidder: "8wN3...tF6a", amount: 38000, time: new Date(now - 43200000).toISOString() },
-    ],
-  },
 ];
 
 const nativeListings: Listing[] = [
