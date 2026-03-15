@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useWallet, useConnection, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
+import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import Link from "next/link";
 import { AuctionProgram } from "@/lib/auction-program";
 import { showToast } from "@/components/ToastContainer";
@@ -37,7 +37,8 @@ interface NFTData {
 export default function AuctionDetailPage() {
   const params = useParams();
   const mint = params.mint as string;
-  const { publicKey, connected, wallet } = useWallet();
+  const { publicKey, connected } = useWallet();
+  const wallet = useAnchorWallet();
   const { connection } = useConnection();
 
   const [listing, setListing] = useState<ListingData | null>(null);
@@ -162,9 +163,10 @@ export default function AuctionDetailPage() {
     try {
       const nftMint = new PublicKey(mint);
       const bidderTokenAccount = await getAssociatedTokenAddress(SOL_MINT, publicKey);
+      // UncheckedAccount on-chain — safe to pass any pubkey when no previous bidder
       const previousBidderAccount = listing.currentBid > 0
         ? await getAssociatedTokenAddress(SOL_MINT, new PublicKey(listing.highestBidder))
-        : PublicKey.default;
+        : publicKey;
 
       const auctionProgram = new AuctionProgram(connection, wallet);
       const tx = await auctionProgram.placeBid(
@@ -227,7 +229,34 @@ export default function AuctionDetailPage() {
     setLoadingAction(true);
     try {
       const nftMint = new PublicKey(mint);
-      const sellerNftAccount = await getAssociatedTokenAddress(nftMint, publicKey);
+
+      // Detect if Token-2022 mint
+      const mintInfo = await connection.getAccountInfo(nftMint);
+      const isT22 = mintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID) || false;
+      const tokenProgramId = isT22 ? TOKEN_2022_PROGRAM_ID : new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+
+      const sellerNftAccount = await getAssociatedTokenAddress(nftMint, publicKey, false, tokenProgramId);
+
+      // Create ATA if it doesn't exist (closed when NFT was escrowed)
+      const ataInfo = await connection.getAccountInfo(sellerNftAccount);
+      if (!ataInfo) {
+        const createAtaIx = createAssociatedTokenAccountInstruction(
+          publicKey,
+          sellerNftAccount,
+          publicKey,
+          nftMint,
+          tokenProgramId,
+          ASSOCIATED_TOKEN_PROGRAM_ID
+        );
+        const { blockhash } = await connection.getLatestBlockhash();
+        const ataTx = new (await import("@solana/web3.js")).Transaction().add(createAtaIx);
+        ataTx.recentBlockhash = blockhash;
+        ataTx.feePayer = publicKey;
+        const signed = await wallet.signTransaction(ataTx);
+        await connection.sendRawTransaction(signed.serialize());
+        // Wait for ATA to be created
+        await new Promise(r => setTimeout(r, 2000));
+      }
 
       const auctionProgram = new AuctionProgram(connection, wallet);
       const tx = await auctionProgram.cancelListing(nftMint, sellerNftAccount);
@@ -377,14 +406,6 @@ export default function AuctionDetailPage() {
                     <div className="bg-dark-900 border border-white/10 rounded-lg p-3 space-y-2 text-xs">
                       <div className="flex justify-between">
                         <span className="text-gray-400">Your Bid:</span>
-                        <span className="text-white">◎ {bidAmount}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Platform Fee (2% deducted from seller):</span>
-                        <span className="text-gray-300">—</span>
-                      </div>
-                      <div className="border-t border-white/10 pt-2 flex justify-between">
-                        <span className="text-gray-300">Total Amount:</span>
                         <span className="text-gold-400 font-semibold">◎ {bidAmount}</span>
                       </div>
                     </div>
@@ -435,12 +456,22 @@ export default function AuctionDetailPage() {
               </button>
             )}
 
-            {/* Cancel Listing Button (seller only) */}
-            {isSeller && !isSettled && !isCancelled && (
+            {/* Ended auction with no bids — prompt seller to reclaim */}
+            {isAuction && auctionEnded && !isSettled && !isCancelled && listing.currentBid === 0 && isSeller && (
+              <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-xl p-5 text-center">
+                <p className="text-yellow-200 font-semibold mb-1">Auction ended with no bids</p>
+                <p className="text-yellow-200/70 text-sm">Cancel the listing to reclaim your NFT from escrow.</p>
+              </div>
+            )}
+
+            {/* Cancel Listing Button (seller only) — hidden during live auction */}
+            {isSeller && !isSettled && !isCancelled && !(isAuction && !auctionEnded) && (
               <div className="pt-4 border-t border-white/10">
                 <p className="text-gray-500 text-xs mb-3">
                   {isAuction && listing.currentBid > 0
                     ? "Cannot cancel after bids have been placed"
+                    : isAuction && auctionEnded
+                    ? "Cancel to return NFT to your wallet"
                     : "You can cancel this listing anytime"}
                 </p>
                 <button
@@ -468,7 +499,7 @@ export default function AuctionDetailPage() {
             {/* Seller Info */}
             <div className="bg-dark-800 border border-white/10 rounded-xl p-6">
               <p className="text-gray-400 text-sm mb-2">Seller</p>
-              <p className="text-white font-mono text-sm">{listing.seller}</p>
+              <p className="text-white font-mono text-sm">{listing.seller.slice(0, 4)}..{listing.seller.slice(-4)}</p>
             </div>
           </div>
         </div>

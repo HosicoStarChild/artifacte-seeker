@@ -126,6 +126,7 @@ export default function PortfolioPage() {
     "3saAedkM9o5g1u5DCqsuMZuC4GRqPB4TuMkvSsSVvGQ3", // Okay Bears
     "7cHTjqr2S8uUCrG3TVFvFix3vcLjhPiwrtRsAeJtESRj", // Drifella 2
     "ArqtvxDZ1nfWgnGiHYCFTLj4FSVuyf7tmkAetQ9SScyQ", // Drifella III
+    "8vE4uASPp9WbS9Ls2qzJ9fpUBpR3UrTG3hBZXdAJQ9mz", // Monkey Baby Business
   ]);
 
   useEffect(() => {
@@ -197,6 +198,9 @@ export default function PortfolioPage() {
                   id: asset.id,
                   name: asset.content?.metadata?.name || "Unknown",
                   image: (() => {
+                    // Prefer Helius CDN URI (reliable Cloudflare proxy)
+                    const cdnUri = ((asset.content as any)?.files?.[0] as any)?.cdn_uri;
+                    if (cdnUri) return cdnUri;
                     let u = asset.content?.links?.image || "";
                     if (u.startsWith("ipfs://")) u = u.replace("ipfs://", "https://cf-ipfs.com/ipfs/");
                     if (u.includes("arweave.net/")) return `/api/img-proxy?url=${encodeURIComponent(u)}`;
@@ -529,6 +533,7 @@ export default function PortfolioPage() {
                       <img
                         src={card.frontImage}
                         alt={card.itemName}
+                        loading="lazy"
                         className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display =
@@ -630,7 +635,7 @@ export default function PortfolioPage() {
                     <div key={nft.id} className="bg-dark-800 rounded-xl border border-white/5 overflow-hidden hover:border-blue-500/30 transition group">
                       <div className="aspect-square overflow-hidden bg-dark-700">
                         {nft.image ? (
-                          <img src={nft.image} alt={nft.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                          <img src={nft.image} alt={nft.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-4xl bg-dark-800">🖼️</div>
                         )}

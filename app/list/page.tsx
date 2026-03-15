@@ -104,6 +104,9 @@ export default function ListNFTPage() {
   }
 
   function getNftImage(nft: NFTAsset): string {
+    // Prefer Helius CDN URI (reliable Cloudflare proxy)
+    const cdnUri = (nft.content?.files?.[0] as any)?.cdn_uri;
+    if (cdnUri) return cdnUri;
     let url = nft.content?.links?.image || nft.content?.files?.[0]?.uri || "/placeholder.png";
     if (url.startsWith("ipfs://")) {
       url = url.replace("ipfs://", "https://cf-ipfs.com/ipfs/");
@@ -159,6 +162,20 @@ export default function ListNFTPage() {
       );
 
       const auctionProgram = new AuctionProgram(connection, wallet.adapter);
+
+      // Check for stale listing PDA and close it first
+      const AUCTION_PROGRAM_ID = new PublicKey("81s1tEx4MPdVvqS6X84Mok5K4N5fMbRLzcsT5eo2K8J3");
+      const [listingPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("listing"), nftMint.toBuffer()],
+        AUCTION_PROGRAM_ID
+      );
+      const existingListing = await connection.getAccountInfo(listingPda);
+      if (existingListing) {
+        console.log("Stale listing found, closing...");
+        await auctionProgram.closeStaleListing(nftMint);
+        // Wait for confirmation
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
 
       const tx = await auctionProgram.listItem(
         nftMint,
@@ -312,6 +329,7 @@ export default function ListNFTPage() {
                         <img
                           src={getNftImage(nft)}
                           alt={nft.content?.metadata?.name}
+                          loading="lazy"
                           className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                           onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.png"; }}
                         />

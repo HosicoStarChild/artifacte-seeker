@@ -233,6 +233,35 @@ export class AuctionProgram {
   }
 
   /**
+   * Close a stale listing where the NFT has already been returned (escrow empty).
+   * This allows re-listing the same NFT after a cancelled listing.
+   */
+  async closeStaleListing(nftMint: PublicKey): Promise<string> {
+    const nftTokenProgram = await detectTokenProgram(this.connection, nftMint);
+
+    const listing = PublicKey.findProgramAddressSync(
+      [Buffer.from("listing"), nftMint.toBuffer()],
+      AUCTION_PROGRAM_ID
+    )[0];
+
+    const escrowNft = PublicKey.findProgramAddressSync(
+      [Buffer.from("escrow_nft"), nftMint.toBuffer()],
+      AUCTION_PROGRAM_ID
+    )[0];
+
+    return await this.program.methods
+      .closeStaleListing()
+      .accounts({
+        listing,
+        nftMint,
+        escrowNft,
+        seller: this.wallet.publicKey,
+        nftTokenProgram,
+      })
+      .rpc();
+  }
+
+  /**
    * List an NFT for sale (fixed price or auction)
    * Supports both standard SPL Token and Token-2022/WNS NFTs
    */
@@ -285,6 +314,7 @@ export class AuctionProgram {
         nftTokenProgram,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       });
 
     // Add WNS remaining accounts if Token-2022 with hook
@@ -417,17 +447,50 @@ export class AuctionProgram {
       AUCTION_PROGRAM_ID
     )[0];
 
+    // For wSOL bids: create ATA + wrap SOL if needed
+    const preInstructions: TransactionInstruction[] = [];
+    const SOL_MINT_ADDR = new PublicKey("So11111111111111111111111111111111111111112");
+    if (paymentMint.equals(SOL_MINT_ADDR)) {
+      const { createAssociatedTokenAccountInstruction } = await import("@solana/spl-token");
+      // Check if bidder wSOL ATA exists
+      const ataInfo = await this.program.provider.connection.getAccountInfo(bidderTokenAccount);
+      if (!ataInfo) {
+        preInstructions.push(
+          createAssociatedTokenAccountInstruction(
+            this.wallet.publicKey,
+            bidderTokenAccount,
+            this.wallet.publicKey,
+            SOL_MINT_ADDR
+          )
+        );
+      }
+      // Transfer native SOL into wSOL ATA
+      preInstructions.push(
+        SystemProgram.transfer({
+          fromPubkey: this.wallet.publicKey,
+          toPubkey: bidderTokenAccount,
+          lamports: bidAmount,
+        })
+      );
+      // Sync native balance
+      const { createSyncNativeInstruction } = await import("@solana/spl-token");
+      preInstructions.push(createSyncNativeInstruction(bidderTokenAccount));
+    }
+
     const tx = await this.program.methods
       .placeBid(new anchor.BN(bidAmount))
       .accounts({
         listing,
+        paymentMint,
         bidEscrow,
         bidderTokenAccount,
         previousBidderAccount,
         bidder: this.wallet.publicKey,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
+      .preInstructions(preInstructions)
       .rpc();
 
     return tx;
@@ -535,6 +598,8 @@ export class AuctionProgram {
       ? await getAssociatedTokenAddress(paymentMint, creatorAddr)
       : SystemProgram.programId;
 
+    const sellerAddress = listingData.seller as PublicKey;
+
     let builder = this.program.methods
       .settleAuction()
       .accounts({
@@ -547,6 +612,7 @@ export class AuctionProgram {
         creatorPaymentAccount,
         buyerNftAccount,
         sellerNftAccount,
+        seller: sellerAddress,
         nftTokenProgram,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
