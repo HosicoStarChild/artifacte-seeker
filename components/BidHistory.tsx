@@ -15,6 +15,8 @@ interface Bid {
 interface BidHistoryProps {
   nftMint: string;
   connection: Connection;
+  currentBid?: number;        // lamports
+  highestBidder?: string;
 }
 
 function maskWallet(wallet: string): string {
@@ -30,7 +32,7 @@ function timeAgo(ts: number): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-export function BidHistory({ nftMint, connection }: BidHistoryProps) {
+export function BidHistory({ nftMint, connection, currentBid, highestBidder }: BidHistoryProps) {
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -72,17 +74,15 @@ export function BidHistory({ nftMint, connection }: BidHistoryProps) {
         AUCTION_PROGRAM_ID
       );
 
-      // Use Helius RPC directly for reliable tx fetching
-      const heliusRpc = `https://mainnet.helius-rpc.com/?api-key=${process.env.NEXT_PUBLIC_HELIUS_API_KEY}`;
-      const conn = new Connection(heliusRpc);
-
-      const signatures = await conn.getSignaturesForAddress(listingPda, { limit: 50 });
+      const signatures = await connection.getSignaturesForAddress(listingPda, { limit: 50 });
+      console.log("[BidHistory] signatures found:", signatures.length);
       if (signatures.length === 0) { setBids([]); return; }
 
-      const txs = await conn.getParsedTransactions(
+      const txs = await connection.getParsedTransactions(
         signatures.map((s) => s.signature),
         { maxSupportedTransactionVersion: 0 }
       );
+      console.log("[BidHistory] txs fetched:", txs.filter(Boolean).length);
 
       const parsed: Bid[] = [];
       for (let i = 0; i < txs.length; i++) {
@@ -118,10 +118,22 @@ export function BidHistory({ nftMint, connection }: BidHistoryProps) {
         }
       }
 
+      console.log("[BidHistory] parsed bids:", parsed.length);
       parsed.sort((a, b) => b.timestamp - a.timestamp);
+      
+      // If parsing found nothing but we have on-chain bid data, show it
+      if (parsed.length === 0 && currentBid && currentBid > 0 && highestBidder) {
+        parsed.push({
+          bidder: highestBidder,
+          amount: currentBid,
+          timestamp: Math.floor(Date.now() / 1000),
+          signature: "on-chain",
+        });
+      }
+      
       setBids(parsed);
     } catch (err) {
-      console.error("On-chain bid fetch failed:", err);
+      console.error("[BidHistory] On-chain bid fetch failed:", err);
       setBids([]);
     }
   };
