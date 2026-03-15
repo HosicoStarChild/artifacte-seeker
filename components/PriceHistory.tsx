@@ -195,7 +195,46 @@ export default function PriceHistory({ cardName, category, grade: rawGrade, year
           return;
         }
 
-        const chosen = searchData.variants[0];
+        // Pick the variant that matches the card number from the name
+        let chosen = searchData.variants[0];
+        const cardNumMatch = cardName.match(/#(\w+)/);
+        if (cardNumMatch && searchData.variants.length > 1) {
+          const targetNum = cardNumMatch[1];
+          const exactMatch = searchData.variants.find(
+            (v: any) => String(v.cardNumber) === targetNum
+          );
+          // If multiple variants share the same card number, further filter by variant type
+          if (exactMatch) {
+            const sameNumVariants = searchData.variants.filter(
+              (v: any) => String(v.cardNumber) === targetNum
+            );
+            if (sameNumVariants.length > 1) {
+              const nameUpper = cardName.toUpperCase();
+              const isReverse = /REVERSE/i.test(nameUpper);
+              const isHolo = /HOLO/i.test(nameUpper) && !isReverse;
+              const isManga = /MANGA/i.test(nameUpper);
+              const isAltArt = /ALT(ERNATE)?\s*ART/i.test(nameUpper) && !isManga;
+              const picked = sameNumVariants.find((v: any) => {
+                const vName = (v.name || '').toUpperCase();
+                // Manga: only pick manga variant if name says manga
+                if (isManga) return /MANGA/i.test(vName);
+                // Alt art (not manga): pick alt art that's NOT manga
+                if (isAltArt) return /ALT/i.test(vName) && !/MANGA/i.test(vName);
+                if (isReverse) return /REVERSE/i.test(vName);
+                if (isHolo) return /HOLO/i.test(vName) && !/REVERSE/i.test(vName);
+                // Default: avoid manga and alt art variants
+                return !/MANGA/i.test(vName) && !/ALT/i.test(vName) && !/REVERSE|HOLO/i.test(vName);
+              });
+              // If no exact match, at least avoid manga when name doesn't say manga
+              const fallback = !isManga 
+                ? sameNumVariants.find((v: any) => !/MANGA/i.test((v.name || '').toUpperCase()))
+                : sameNumVariants[0];
+              chosen = picked || fallback || sameNumVariants[0];
+            } else {
+              chosen = exactMatch;
+            }
+          }
+        }
 
         // Get transaction count
         if (chosen.assetId) {
@@ -211,10 +250,13 @@ export default function PriceHistory({ cardName, category, grade: rawGrade, year
           } catch {}
         }
 
-        // Build chart URL using the search query
+        // Build chart URL — use assetId for exact variant match, keep q for fallback
         const chartParams = new URLSearchParams();
         chartParams.set("endpoint", "chart");
         chartParams.set("q", searchQuery);
+        if (chosen.assetId) {
+          chartParams.set("assetId", chosen.assetId);
+        }
         if (grade) chartParams.set("grade", grade);
         
         setChartUrl(`/api/oracle?${chartParams.toString()}`);
