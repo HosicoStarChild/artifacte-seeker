@@ -4,9 +4,8 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import VerifiedBadge from "@/components/VerifiedBadge";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { useConnection } from "@solana/wallet-adapter-react";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import dynamic from "next/dynamic";
 import { showToast } from "@/components/ToastContainer";
 import PriceHistory from "@/components/PriceHistory";
@@ -16,8 +15,8 @@ const WalletMultiButton = dynamic(
   { ssr: false }
 );
 
-// Treasury wallet for platform fees
-const TREASURY_WALLET = new PublicKey("6drXw31FjHch4ixXa4ngTyUD2cySUs3mpcB2YYGA9g7P");
+// Fee collection happens on our auction program listings only (2% on-chain)
+// CC card buys pass through to ME with no separate fee
 
 export default function CardDetailPage() {
   const params = useParams();
@@ -25,7 +24,7 @@ export default function CardDetailPage() {
   const [card, setCard] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState(false);
-  const { publicKey, sendTransaction, connected } = useWallet();
+  const { publicKey, signTransaction, sendTransaction, connected } = useWallet();
   const { connection } = useConnection();
 
   useEffect(() => {
@@ -50,7 +49,7 @@ export default function CardDetailPage() {
     setBuying(true);
 
     try {
-      // Step 1: Ask our API to build the full transaction
+      // Step 1: Get ME notary-cosigned transaction from our API
       showToast.info("Building transaction...");
       
       const buildRes = await fetch('/api/me-buy', {
@@ -67,29 +66,48 @@ export default function CardDetailPage() {
         throw new Error(errData.error || 'Failed to build transaction');
       }
 
-      const { transaction: txBase64, price, fee } = await buildRes.json();
+      const { v0Tx, legacyTx, price } = await buildRes.json();
       
-      // Step 2: Deserialize and send for signing
-      const txBytes = Buffer.from(txBase64, 'base64');
-      const tx = Transaction.from(txBytes);
+      const txBase64 = v0Tx || legacyTx;
+      if (!txBase64) throw new Error("No transaction returned from API");
+      
+      if (!signTransaction) {
+        throw new Error("Wallet does not support signing");
+      }
 
-      showToast.info(`💳 Confirm in wallet — ${price} SOL + ${fee.toFixed(4)} SOL fee`);
+      showToast.info(`💳 Confirm purchase — ${price} SOL`);
+      const txBytes = Uint8Array.from(atob(txBase64), c => c.charCodeAt(0));
       
-      const sig = await sendTransaction(tx, connection);
+      let sig: string;
+      if (v0Tx) {
+        const vTx = VersionedTransaction.deserialize(txBytes);
+        const signed = await signTransaction(vTx as any);
+        sig = await connection.sendRawTransaction((signed as any).serialize(), {
+          skipPreflight: true,
+          preflightCommitment: 'confirmed',
+        });
+      } else {
+        const tx = Transaction.from(txBytes);
+        const signed = await signTransaction(tx);
+        sig = await connection.sendRawTransaction(signed.serialize());
+      }
       
-      showToast.info("⏳ Confirming transaction...");
+      showToast.info("⏳ Confirming purchase...");
       await connection.confirmTransaction(sig, "confirmed");
-
       showToast.success(`✅ NFT purchased! TX: ${sig.slice(0, 16)}...`);
     } catch (err: any) {
-      if (err.message?.includes("User rejected")) {
+      if (err.message?.includes("User rejected") || err.message?.includes("user rejected")) {
         showToast.error("Transaction cancelled");
       } else if (err.message?.includes("insufficient")) {
-        showToast.error("Insufficient balance");
+        showToast.error("Insufficient SOL balance");
+      } else if (err.message?.includes("no longer available") || err.message?.includes("already been sold")) {
+        showToast.error("This item has already been sold");
       } else if (err.message?.includes("No active listing")) {
-        showToast.error("This item is no longer available");
+        showToast.error("This item is no longer listed");
+      } else if (err.message?.includes("Simulation failed") || err.message?.includes("simulation failed")) {
+        showToast.error("Transaction simulation failed. This listing may be stale — try refreshing the page.");
       } else {
-        showToast.error(`Error: ${(err.message || "").slice(0, 100)}`);
+        showToast.error(`Error: ${(err.message || "").slice(0, 120)}`);
       }
     } finally {
       setBuying(false);
@@ -173,13 +191,14 @@ export default function CardDetailPage() {
               {connected ? (
                 <button
                   disabled
-                  className="w-full px-6 py-3.5 bg-gold-500/50 text-dark-900/50 rounded-lg text-base font-semibold cursor-not-allowed"
+                  className="w-full px-6 py-3.5 bg-gray-600/50 cursor-not-allowed text-gray-400 rounded-lg text-base font-semibold"
                 >
                   Buy Now — Coming Soon
                 </button>
               ) : (
                 <WalletMultiButton className="!w-full !bg-gold-500 hover:!bg-gold-600 !rounded-lg !h-12 !text-base !font-semibold" />
               )}
+              <p className="text-gray-600 text-xs mt-2">Powered by Magic Eden</p>
             </div>
 
             {/* Grading Info */}

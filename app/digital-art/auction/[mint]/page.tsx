@@ -113,9 +113,15 @@ export default function AuctionDetailPage() {
     setLoadingAction(true);
     try {
       const nftMint = new PublicKey(mint);
+
+      // Detect Token-2022 for correct ATA derivation
+      const mintInfoBuy = await connection.getAccountInfo(nftMint);
+      const isT22Buy = mintInfoBuy?.owner.equals(TOKEN_2022_PROGRAM_ID) || false;
+      const nftProgBuy = isT22Buy ? TOKEN_2022_PROGRAM_ID : new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+
       const buyerPaymentAccount = await getAssociatedTokenAddress(SOL_MINT, publicKey);
       const sellerPaymentAccount = await getAssociatedTokenAddress(SOL_MINT, new PublicKey(listing.seller));
-      const buyerNftAccount = await getAssociatedTokenAddress(nftMint, publicKey);
+      const buyerNftAccount = await getAssociatedTokenAddress(nftMint, publicKey, false, nftProgBuy);
 
       const auctionProgram = new AuctionProgram(connection, wallet);
       const tx = await auctionProgram.buyNow(
@@ -128,7 +134,7 @@ export default function AuctionDetailPage() {
       );
 
       showToast.success("Purchase successful!");
-      setTimeout(() => loadListingData(), 2000);
+      setListing((prev: any) => prev ? { ...prev, status: { settled: {} } } : prev);
     } catch (err: any) {
       console.error("Purchase failed:", err);
       showToast.error(err.message || "Purchase failed");
@@ -197,9 +203,15 @@ export default function AuctionDetailPage() {
     setLoadingAction(true);
     try {
       const nftMint = new PublicKey(mint);
+
+      // Detect if Token-2022 mint (WNS/Quekz etc.)
+      const mintInfo = await connection.getAccountInfo(nftMint);
+      const isT22 = mintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID) || false;
+      const nftTokenProgramId = isT22 ? TOKEN_2022_PROGRAM_ID : new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+
       const sellerPaymentAccount = await getAssociatedTokenAddress(SOL_MINT, new PublicKey(listing.seller));
-      const buyerNftAccount = await getAssociatedTokenAddress(nftMint, new PublicKey(listing.highestBidder));
-      const sellerNftAccount = await getAssociatedTokenAddress(nftMint, new PublicKey(listing.seller));
+      const buyerNftAccount = await getAssociatedTokenAddress(nftMint, new PublicKey(listing.highestBidder), false, nftTokenProgramId);
+      const sellerNftAccount = await getAssociatedTokenAddress(nftMint, new PublicKey(listing.seller), false, nftTokenProgramId);
 
       const auctionProgram = new AuctionProgram(connection, wallet);
       const tx = await auctionProgram.settleAuction(
@@ -211,7 +223,8 @@ export default function AuctionDetailPage() {
       );
 
       showToast.success("Auction settled successfully!");
-      setTimeout(() => loadListingData(), 2000);
+      // Update local state instead of reloading (listing PDA is closed after settle)
+      setListing((prev: any) => prev ? { ...prev, status: { settled: {} } } : prev);
     } catch (err: any) {
       console.error("Settlement failed:", err);
       showToast.error(err.message || "Settlement failed");
@@ -262,7 +275,7 @@ export default function AuctionDetailPage() {
       const tx = await auctionProgram.cancelListing(nftMint, sellerNftAccount);
 
       showToast.success("Listing cancelled successfully!");
-      setTimeout(() => loadListingData(), 2000);
+      setListing((prev: any) => prev ? { ...prev, status: { cancelled: {} } } : prev);
     } catch (err: any) {
       console.error("Cancellation failed:", err);
       showToast.error(err.message || "Cancellation failed");
@@ -464,8 +477,8 @@ export default function AuctionDetailPage() {
               </div>
             )}
 
-            {/* Cancel Listing Button (seller only) — hidden during live auction */}
-            {isSeller && !isSettled && !isCancelled && !(isAuction && !auctionEnded) && (
+            {/* Cancel Listing Button (seller only) — hidden during live auction with bids */}
+            {isSeller && !isSettled && !isCancelled && !(isAuction && !auctionEnded && listing.currentBid > 0) && (
               <div className="pt-4 border-t border-white/10">
                 <p className="text-gray-500 text-xs mb-3">
                   {isAuction && listing.currentBid > 0

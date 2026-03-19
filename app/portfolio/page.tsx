@@ -147,12 +147,10 @@ export default function PortfolioPage() {
         const [response, floorRes, nftRes] = await Promise.all([
           fetch(`/api/portfolio?wallet=${wallet}`),
           fetch('/api/floor-prices').catch(() => null),
-          fetch(`https://mainnet.helius-rpc.com/?api-key=${process.env.NEXT_PUBLIC_HELIUS_API_KEY}`, {
+          fetch("/api/helius-das", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              jsonrpc: "2.0",
-              id: "my-id",
               method: "getAssetsByOwner",
               params: {
                 ownerAddress: wallet,
@@ -198,11 +196,15 @@ export default function PortfolioPage() {
                   id: asset.id,
                   name: asset.content?.metadata?.name || "Unknown",
                   image: (() => {
-                    // Prefer Helius CDN URI (reliable Cloudflare proxy)
+                    let u = asset.content?.links?.image || "";
+                    // Route IPFS/nftstorage through our proxy (gateways are dead)
+                    if (u.includes("nftstorage.link/") || u.includes("/ipfs/") || u.startsWith("ipfs://")) {
+                      if (u.startsWith("ipfs://")) u = u.replace("ipfs://", "https://nftstorage.link/ipfs/");
+                      return `/api/img-proxy?url=${encodeURIComponent(u)}`;
+                    }
+                    // Prefer Helius CDN URI for non-IPFS
                     const cdnUri = ((asset.content as any)?.files?.[0] as any)?.cdn_uri;
                     if (cdnUri) return cdnUri;
-                    let u = asset.content?.links?.image || "";
-                    if (u.startsWith("ipfs://")) u = u.replace("ipfs://", "https://cf-ipfs.com/ipfs/");
                     if (u.includes("arweave.net/")) return `/api/img-proxy?url=${encodeURIComponent(u)}`;
                     return u;
                   })(),
