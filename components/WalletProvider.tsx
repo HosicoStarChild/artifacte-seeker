@@ -9,7 +9,8 @@ import { clusterApiUrl } from "@solana/web3.js";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export const WalletProviderWrapper: FC<{ children: ReactNode }> = ({ children }) => {
-  const endpoint = useMemo(() => `https://mainnet.helius-rpc.com/?api-key=${process.env.NEXT_PUBLIC_HELIUS_API_KEY}`, []);
+  // RPC proxy — keeps API key server-side  
+  const endpoint = useMemo(() => 'https://artifacte.io/api/rpc', []);
   const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()], []);
 
   return (

@@ -29,15 +29,140 @@ export default function CardDetailPage() {
 
   useEffect(() => {
     if (!cardId) return;
-    // Fetch all listings and find this card
-    fetch(`/api/me-listings?perPage=10000`)
-      .then(r => r.json())
-      .then(data => {
-        const found = (data.listings || []).find((l: any) => l.id === cardId || l.ccId === cardId.replace('cc-', ''));
-        setCard(found || null);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    
+    async function loadCard() {
+      // Phygital cards: load directly from Helius
+      if (cardId.startsWith('phyg-')) {
+        const mint = cardId.replace('phyg-', '');
+        try {
+          // Search oracle for this specific card by name/mint
+          const searchRes = await fetch(`/api/me-listings?category=TCG_CARDS&q=${encodeURIComponent(mint)}&perPage=1`);
+          const searchData = searchRes.ok ? await searchRes.json() : null;
+          const oracleListing = searchData?.listings?.find((l: any) => l.id === cardId || l.nftAddress === mint);
+          
+          // Also fetch Helius metadata for TCGPlayer ID
+          const assetRes = await fetch(`/api/nft?mint=${mint}`);
+          const assetData = assetRes.ok ? await assetRes.json() : null;
+          const nft = assetData?.nft || assetData || {};
+          const attrs = nft.attributes || [];
+          const getAttr = (name: string) => attrs.find((a: any) => a.trait_type?.toLowerCase() === name.toLowerCase())?.value;
+
+          const tcgPlayerId = getAttr('TCGPlayer ID') || getAttr('TCGplayer Product ID') || oracleListing?.tcgPlayerId || '';
+          
+          setCard({
+            id: cardId,
+            name: oracleListing?.name || nft.name || mint.slice(0, 12),
+            subtitle: oracleListing?.subtitle || [getAttr('TCG'), getAttr('Set'), getAttr('Rarity'), '• Phygital'].filter(Boolean).join(' • '),
+            image: oracleListing?.image || nft.image || '',
+            nftAddress: mint,
+            source: 'phygitals',
+            currency: 'SOL',
+            category: 'TCG_CARDS',
+            price: oracleListing?.solPrice || oracleListing?.price || 0,
+            solPrice: oracleListing?.solPrice || oracleListing?.price || 0,
+            seller: oracleListing?.seller || '',
+            grade: oracleListing?.grade || getAttr('Grade') || 'Ungraded',
+            tcg: oracleListing?.tcg || getAttr('TCG') || '',
+            rarity: oracleListing?.rarity || getAttr('Rarity') || '',
+            set: oracleListing?.set || getAttr('Set') || '',
+            cardNumber: oracleListing?.cardNumber || getAttr('Card Number') || '',
+            year: oracleListing?.year || getAttr('Year') || '',
+            tcgPlayerId,
+            priceSource: tcgPlayerId ? 'TCGplayer' : undefined,
+            priceSourceId: tcgPlayerId || undefined,
+            verifiedBy: 'TCGplayer',
+          });
+          setLoading(false);
+          return;
+        } catch {}
+      }
+
+      // First try: listing index (CC cards)
+      try {
+        const listRes = await fetch(`/api/me-listings?perPage=10000`);
+        const data = await listRes.json();
+        const found = (data.listings || []).find((l: any) => l.id === cardId || l.nftAddress === cardId || l.ccId === cardId.replace('cc-', ''));
+        if (found) {
+          setCard(found);
+          setLoading(false);
+          return;
+        }
+      } catch {}
+
+      // Second try: direct Helius lookup (Artifacte-minted cards)
+      try {
+        const nftRes = await fetch(`/api/nft?mint=${cardId}`);
+        if (nftRes.ok) {
+          const nftData = await nftRes.json();
+          const asset = nftData.result || nftData.nft;
+          if (asset) {
+            const attrs = asset.content?.metadata?.attributes || asset.attributes || [];
+            const getAttr = (key: string) => attrs.find((a: any) => a.trait_type === key)?.value || "";
+            const isArtifacte = asset.authorities?.some((a: any) => a.address === "DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX");
+            const ccCollection = asset.grouping?.find((g: any) => g.group_value === "CCryptWBYktukHDQ2vHGtVcmtjXxYzvw8XNVY64YN2Yf") || 
+                                 asset.collection === "CCryptWBYktukHDQ2vHGtVcmtjXxYzvw8XNVY64YN2Yf";
+            const isCC = !!ccCollection;
+            
+            if (isArtifacte) {
+              setCard({
+                id: asset.id || asset.mint || cardId,
+                name: asset.content?.metadata?.name || asset.name || "Unknown",
+                image: asset.content?.links?.image || asset.image || "",
+                nftAddress: asset.id || asset.mint || cardId,
+                category: "TCG_CARDS",
+                source: "artifacte",
+                collection: "Artifacte",
+                grade: getAttr("Condition") === "Graded" ? `${getAttr("Grading Company")} ${getAttr("Grade")}` : getAttr("Condition"),
+                gradeNum: getAttr("Grade") || null,
+                gradingCompany: getAttr("Grading Company") || null,
+                year: getAttr("Year"),
+                ccCategory: getAttr("TCG"),
+                variant: getAttr("Variant"),
+                language: getAttr("Language"),
+                cardName: getAttr("Card Name"),
+                set: getAttr("Set"),
+                cardNumber: getAttr("Card Number"),
+                priceSource: getAttr("Price Source"),
+                priceSourceId: getAttr("Price Source ID"),
+                seller: asset.ownership?.owner,
+                insuredValue: null,
+                vault: null,
+              });
+              setLoading(false);
+              return;
+            }
+
+            if (isCC) {
+              const ccName = asset.content?.metadata?.name || asset.name || "Unknown";
+              setCard({
+                id: asset.id || asset.mint || cardId,
+                name: ccName,
+                image: asset.content?.links?.image || asset.image || "",
+                nftAddress: asset.id || asset.mint || cardId,
+                category: "TCG_CARDS",
+                source: "collector-crypt",
+                collection: "Collectors Crypt",
+                grade: `${getAttr("Grading Company")} ${getAttr("The Grade") || getAttr("GradeNum")}`.trim(),
+                gradeNum: getAttr("GradeNum") || null,
+                gradingCompany: getAttr("Grading Company") || null,
+                year: getAttr("Year"),
+                ccCategory: getAttr("Category"),
+                insuredValue: getAttr("Insured Value") ? parseInt(getAttr("Insured Value")) : null,
+                vault: getAttr("Vault"),
+                seller: asset.ownership?.owner || (asset as any).owner,
+                subtitle: `${getAttr("Category")} • ${getAttr("Grading Company")} ${getAttr("GradeNum")} • ${getAttr("Vault") || "Vault"}`,
+              });
+              setLoading(false);
+              return;
+            }
+          }
+        }
+      } catch {}
+
+      setLoading(false);
+    }
+    
+    loadCard();
   }, [cardId]);
 
   const handleBuy = async () => {
@@ -66,35 +191,92 @@ export default function CardDetailPage() {
         throw new Error(errData.error || 'Failed to build transaction');
       }
 
-      const { v0Tx, legacyTx, price } = await buildRes.json();
+      const { v0Tx, v0TxSigned, price, platformFee, blockhash, lastValidBlockHeight, listingSource } = await buildRes.json();
       
-      const txBase64 = v0Tx || legacyTx;
-      if (!txBase64) throw new Error("No transaction returned from API");
+      if (!v0Tx && !v0TxSigned) throw new Error("No transaction returned from API");
       
       if (!signTransaction) {
         throw new Error("Wallet does not support signing");
       }
 
-      showToast.info(`💳 Confirm purchase — ${price} SOL`);
-      const txBytes = Uint8Array.from(atob(txBase64), c => c.charCodeAt(0));
+      const feeDisplay = platformFee ? ` + ${platformFee.toFixed(4)} fee` : '';
+      showToast.info(`💳 Confirm purchase — ${price} SOL${feeDisplay}`);
       
-      let sig: string;
-      if (v0Tx) {
-        const vTx = VersionedTransaction.deserialize(txBytes);
-        const signed = await signTransaction(vTx as any);
-        sig = await connection.sendRawTransaction((signed as any).serialize(), {
-          skipPreflight: true,
-          preflightCommitment: 'confirmed',
-        });
-      } else {
-        const tx = Transaction.from(txBytes);
-        const signed = await signTransaction(tx);
-        sig = await connection.sendRawTransaction(signed.serialize());
+      // Step 2: Deserialize and verify tx before signing
+      // For cosigned txs (M3/M2 with notary), use v0TxSigned so wallet can simulate
+      const txBase64 = v0TxSigned || v0Tx;
+      const txBytes = Uint8Array.from(atob(txBase64), c => c.charCodeAt(0));
+      const vTx = VersionedTransaction.deserialize(txBytes);
+      
+      // Sanity check: fee payer must be the connected wallet
+      const feePayer = vTx.message.staticAccountKeys[0];
+      if (feePayer.toBase58() !== publicKey.toBase58()) {
+        throw new Error("Transaction fee payer doesn't match connected wallet");
       }
       
-      showToast.info("⏳ Confirming purchase...");
-      await connection.confirmTransaction(sig, "confirmed");
-      showToast.success(`✅ NFT purchased! TX: ${sig.slice(0, 16)}...`);
+      // Sanity check: must interact with ME marketplace (M2 or M3)
+      const M2_PROGRAM = 'M2mx93ekt1fmXSVkTrUL9xVFHkmME8HTUi5Cyc5aF7K';
+      const M3_PROGRAM = 'M3mxk5W2tt27WGT7THox7PmgRDp4m6NEhL5xvxrBfS1';
+      const hasME = vTx.message.staticAccountKeys.some(k => 
+        k.toBase58() === M2_PROGRAM || k.toBase58() === M3_PROGRAM
+      );
+      if (!hasME) {
+        throw new Error("Transaction doesn't interact with ME marketplace");
+      }
+      
+      const signed = await signTransaction(vTx as any);
+      
+      const rawTx = (signed as any).serialize();
+      
+      // Step 4: Send with aggressive retry loop until blockhash expires
+      showToast.info("⏳ Submitting transaction...");
+      let sig = await connection.sendRawTransaction(rawTx, {
+        skipPreflight: true,
+        maxRetries: 0, // we handle retries ourselves
+      });
+      
+      // Retry sending every 2s until confirmed or blockhash expires
+      const startTime = Date.now();
+      const MAX_RETRY_MS = 60_000; // 60s max
+      let confirmed = false;
+      
+      while (!confirmed && Date.now() - startTime < MAX_RETRY_MS) {
+        // Check if confirmed
+        const status = await connection.getSignatureStatus(sig);
+        if (status?.value?.confirmationStatus === 'confirmed' || 
+            status?.value?.confirmationStatus === 'finalized') {
+          confirmed = true;
+          break;
+        }
+        if (status?.value?.err) {
+          throw new Error('Transaction failed on-chain');
+        }
+        
+        // Check if blockhash still valid
+        const valid = await connection.isBlockhashValid(blockhash);
+        if (!valid?.value) {
+          // Blockhash expired — tx won't land
+          break;
+        }
+        
+        // Resend the same tx (idempotent — same sig won't double-execute)
+        try {
+          await connection.sendRawTransaction(rawTx, {
+            skipPreflight: true,
+            maxRetries: 0,
+          });
+        } catch {}
+        
+        // Wait 2s before next check
+        await new Promise(r => setTimeout(r, 2000));
+      }
+      
+      if (confirmed) {
+        showToast.success(`✅ NFT purchased! TX: ${sig.slice(0, 16)}...`);
+      } else {
+        // Not confirmed yet — might still land
+        showToast.info(`⏳ TX sent: ${sig.slice(0, 8)}... — check your wallet in a moment`);
+      }
     } catch (err: any) {
       if (err.message?.includes("User rejected") || err.message?.includes("user rejected")) {
         showToast.error("Transaction cancelled");
@@ -158,7 +340,14 @@ export default function CardDetailPage() {
           {/* Left: Image */}
           <div className="bg-dark-800 rounded-xl border border-white/5 p-6 flex items-start justify-center self-start lg:sticky lg:top-28">
             <img
-              src={card.image}
+              src={(() => {
+                let u = card.image || '';
+                if (u.includes('arweave.net/') || u.includes('nftstorage.link/') || u.includes('/ipfs/') || u.startsWith('ipfs://')) {
+                  if (u.startsWith('ipfs://')) u = u.replace('ipfs://', 'https://nftstorage.link/ipfs/');
+                  return `/api/img-proxy?url=${encodeURIComponent(u)}`;
+                }
+                return u;
+              })()}
               alt={card.name}
               className="max-h-[500px] w-auto object-contain rounded-lg"
               onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-card.svg'; }}
@@ -172,38 +361,58 @@ export default function CardDetailPage() {
               <div className="flex items-center gap-3 mb-3">
                 <span className="text-gold-500 text-xs font-semibold tracking-widest uppercase">{card.ccCategory}</span>
                 <VerifiedBadge collectionName={card.name} verifiedBy={card.verifiedBy} />
+                {card.collection && (
+                  <span className="px-2 py-0.5 rounded-full bg-gold-500/10 border border-gold-500/30 text-gold-400 text-xs font-semibold tracking-wide">
+                    {card.collection}
+                  </span>
+                )}
               </div>
               <h1 className="font-serif text-3xl md:text-4xl text-white mb-2">{card.name}</h1>
               <p className="text-gray-400 text-sm">{card.subtitle}</p>
             </div>
 
             {/* Price */}
-            <div className="bg-dark-800 rounded-xl border border-white/5 p-6">
-              <p className="text-gray-500 text-xs font-medium tracking-wider mb-2">Price</p>
-              <div className="flex items-baseline gap-3 mb-4">
-                <p className="text-white font-serif text-4xl">
-                  {card.currency === 'SOL' ? `◎ ${card.price.toLocaleString()}` : `$${card.price.toLocaleString()}`}
-                </p>
-                <span className="text-gold-500 text-sm font-medium">{card.currency}</span>
-              </div>
-{/* price markup info removed */}
+            {card.source === "artifacte" ? (
+              <ArtifactePriceSection card={card} />
+            ) : (
+              <div className="bg-dark-800 rounded-xl border border-white/5 p-6">
+                <p className="text-gray-500 text-xs font-medium tracking-wider mb-2">{card.price ? "Price" : "Status"}</p>
+                <div className="flex items-baseline gap-3 mb-4">
+                  <p className="text-white font-serif text-4xl">
+                    {card.price 
+                      ? (card.currency === 'SOL' ? `◎ ${card.price.toLocaleString()}` : `$${card.price.toLocaleString()}`)
+                      : "Unlisted"
+                    }
+                  </p>
+                  {card.price && <span className="text-gold-500 text-sm font-medium">{card.currency}</span>}
+                </div>
 
-              {connected ? (
-                <button
-                  disabled
-                  className="w-full px-6 py-3.5 bg-gray-600/50 cursor-not-allowed text-gray-400 rounded-lg text-base font-semibold"
-                >
-                  Buy Now — Coming Soon
-                </button>
-              ) : (
-                <WalletMultiButton className="!w-full !bg-gold-500 hover:!bg-gold-600 !rounded-lg !h-12 !text-base !font-semibold" />
-              )}
-              <p className="text-gray-600 text-xs mt-2">Powered by Magic Eden</p>
-            </div>
+                {card.price ? (
+                  connected ? (
+                    <button
+                      onClick={handleBuy}
+                      disabled={buying}
+                      className={`w-full px-6 py-3.5 rounded-lg text-base font-semibold transition ${
+                        buying 
+                          ? "bg-gray-600/50 cursor-not-allowed text-gray-400" 
+                          : "bg-gold-500 hover:bg-gold-600 text-dark-900"
+                      }`}
+                    >
+                      {buying ? "Processing..." : `Buy Now — ${card.currency === 'SOL' ? '◎' : '$'}${card.price.toLocaleString()} ${card.currency}`}
+                    </button>
+                  ) : (
+                    <WalletMultiButton className="w-full !bg-gold-500 !text-dark-900 !rounded-lg !text-base !font-semibold !py-3.5" />
+                  )
+                ) : (
+                  <p className="text-gray-500 text-sm">This item is not currently listed for sale</p>
+                )}
+                {card.price && <p className="text-gray-600 text-xs mt-2">Powered by Magic Eden</p>}
+              </div>
+            )}
 
             {/* Grading Info */}
             <div className="bg-dark-800 rounded-xl border border-white/5 p-6">
-              <h3 className="text-white font-medium text-sm mb-4 tracking-wider uppercase">Grading Details</h3>
+              <h3 className="text-white font-medium text-sm mb-4 tracking-wider uppercase">{card.source === "artifacte" && card.condition !== "Graded" ? "Card Details" : "Grading Details"}</h3>
               <div className="grid grid-cols-2 gap-4">
                 {card.gradingCompany && (
                   <div>
@@ -217,10 +426,10 @@ export default function CardDetailPage() {
                     <p className="text-white text-sm font-medium">{card.grade}</p>
                   </div>
                 )}
-                {card.gradeNum !== undefined && (
+                {(card.gradeNum !== undefined || card.source === "artifacte") && (
                   <div>
                     <p className="text-gray-500 text-xs mb-1">Grade Number</p>
-                    <p className="text-white text-sm font-medium">{card.gradeNum}</p>
+                    <p className="text-white text-sm font-medium">{card.gradeNum || (card.condition === "Graded" ? card.grade : "Ungraded")}</p>
                   </div>
                 )}
                 {card.year && (
@@ -294,17 +503,37 @@ export default function CardDetailPage() {
                 )}
               </div>
               <div className="mt-4 pt-4 border-t border-white/5">
-                <p className="text-gray-400 text-xs leading-relaxed">
-                  📦 Physical card securely stored at {card.vault || 'vault facility'}. After purchase, you own the NFT representing this card. To claim the physical card, redeem via{' '}
-                  <a href="https://collectorcrypt.com" target="_blank" rel="noopener noreferrer" className="text-gold-500 hover:text-gold-400 underline">
-                    Collector Crypt
-                  </a>.
-                </p>
+                {card.source === "artifacte" ? (
+                  <p className="text-gray-400 text-xs leading-relaxed">
+                    📦 Physical card securely stored and custodied by <span className="text-gold-500 font-medium">Artifacte</span>. After purchase, you own the NFT representing this card. To claim the physical card, contact Artifacte for redemption.
+                  </p>
+                ) : (
+                  <p className="text-gray-400 text-xs leading-relaxed">
+                    📦 Physical card securely stored at {card.vault || 'vault facility'}. After purchase, you own the NFT representing this card. To claim the physical card, redeem via{' '}
+                    {card.source === 'phygitals' ? (
+                      <a href="https://phygitals.io" target="_blank" rel="noopener noreferrer" className="text-gold-500 hover:text-gold-400 underline">
+                        Phygitals
+                      </a>
+                    ) : (
+                      <a href="https://collectorcrypt.com" target="_blank" rel="noopener noreferrer" className="text-gold-500 hover:text-gold-400 underline">
+                        Collector Crypt
+                      </a>
+                    )}.
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Oracle Price History — skip for merchandise */}
-            {card.category !== 'MERCHANDISE' && (
+            {/* Phygitals: show TCGplayer price box */}
+            {card.source === 'phygitals' && card.priceSourceId && (
+              <TcgPlayerPriceBox productId={card.priceSourceId} />
+            )}
+            {/* CC cards with TCGplayer source: show TCGplayer price box */}
+            {card.source !== 'phygitals' && card.priceSource === 'TCGplayer' && card.priceSourceId && (
+              <TcgPlayerPriceBox productId={card.priceSourceId} />
+            )}
+            {/* Oracle Price History — graded CC/Sports cards only */}
+            {card.category !== 'MERCHANDISE' && card.source !== 'phygitals' && card.priceSource !== 'TCGplayer' && (
             <PriceHistory 
               cardName={card.name} 
               category={card.category} 
@@ -348,6 +577,60 @@ export default function CardDetailPage() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function TcgPlayerPriceBox({ productId }: { productId: string }) {
+  const [price, setPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/tcgplayer-price?id=${productId}`)
+      .then(r => r.json())
+      .then(d => setPrice(d.marketPrice || d.listedMedianPrice || null))
+      .catch(() => {});
+  }, [productId]);
+
+  return (
+    <div className="bg-dark-800 rounded-xl border border-white/5 p-6">
+      <h3 className="text-white font-medium text-sm mb-4 tracking-wider uppercase">Market Price</h3>
+      <p className="text-white font-serif text-3xl font-bold mb-1">
+        {price ? `$${price.toFixed(2)}` : "Loading..."}
+      </p>
+      <p className="text-gray-500 text-xs">Current market price per TCGplayer</p>
+    </div>
+  );
+}
+
+function ArtifactePriceSection({ card }: { card: any }) {
+  const [marketPrice, setMarketPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (card.priceSource === "TCGplayer" && card.priceSourceId) {
+      fetch(`/api/tcgplayer-price?id=${card.priceSourceId}`)
+        .then(r => r.json())
+        .then(d => setMarketPrice(d.marketPrice || d.listedMedianPrice || null))
+        .catch(() => {});
+    }
+  }, [card.priceSource, card.priceSourceId]);
+
+  return (
+    <div className="bg-dark-800 rounded-xl border border-white/5 p-6">
+      <p className="text-gray-500 text-xs font-medium tracking-wider mb-2">Market Price</p>
+      <div className="flex items-baseline gap-3 mb-2">
+        <p className="text-white font-serif text-4xl">
+          {marketPrice ? `$${marketPrice.toFixed(2)}` : "—"}
+        </p>
+        {card.priceSource && (
+          <span className="text-gold-500 text-xs font-medium">via {card.priceSource}</span>
+        )}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-3 text-xs text-gray-400">
+        {card.variant && <span className="bg-dark-700 px-2 py-1 rounded">{card.variant}</span>}
+        {card.language && <span className="bg-dark-700 px-2 py-1 rounded">{card.language}</span>}
+        {card.grade && <span className="bg-dark-700 px-2 py-1 rounded">{card.grade}</span>}
+        <span className="bg-dark-700 px-2 py-1 rounded">Artifacte Collection</span>
       </div>
     </div>
   );

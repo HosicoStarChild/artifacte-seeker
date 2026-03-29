@@ -1,16 +1,18 @@
+[toolchain]
+
 [features]
-seeds = false
+resolution = true
 skip-lint = false
 
-[programs.devnet]
-rwa_nft = "RWAnft1111111111111111111111111111111111111"
-auction = "Auct1111111111111111111111111111111111111111"
+[programs.mainnet]
+auction = "81s1tEx4MPdVvqS6X84Mok5K4N5fMbRLzcsT5eo2K8J3"
+rwa_nft = "dK6HkxoT5BHYdPJFomXNSSB1fBUoRjxGT7XxbQudFLH"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "mainnet"
 wallet = "~/.config/solana/id.json"
 
 [workspace]

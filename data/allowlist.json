@@ -51,7 +51,7 @@
       "addedAt": 1704067200000,
       "addedBy": "DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX",
       "verified": true,
-      "description": "A collection of 7,777 foxes building the Famous Fox Federation \u2014 a community-driven ecosystem on Solana with staking, raffles, and governance.",
+      "description": "A collection of 7,777 foxes building the Famous Fox Federation — a community-driven ecosystem on Solana with staking, raffles, and governance.",
       "links": {
         "twitter": "https://twitter.com/FamousFoxFed"
       }
@@ -79,7 +79,7 @@
       "addedAt": 1704067200000,
       "addedBy": "DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX",
       "verified": true,
-      "description": "Call of Saga is the Claynosaurz companion collection \u2014 2,000 saga-themed clay dinosaurs with unique lore and utility within the Claynosaurz ecosystem.",
+      "description": "Call of Saga is the Claynosaurz companion collection — 2,000 saga-themed clay dinosaurs with unique lore and utility within the Claynosaurz ecosystem.",
       "links": {
         "twitter": "https://twitter.com/Claynosaurz"
       }
@@ -295,6 +295,70 @@
       "links": {
         "twitter": "https://x.com/zeromonkebiz"
       }
+    },
+    {
+      "collectionAddress": "DGygonz7pn6AFrb1nUUyH3Bu5SVuuCSu38AZWT1cAC4B",
+      "name": "ZMB",
+      "category": "Digital Art",
+      "image": "/collections/zmb.png",
+      "supply": 5000,
+      "addedAt": 1774287450000,
+      "addedBy": "DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX",
+      "verified": true,
+      "description": "Zero Monke Biz (ZMB) Wave 1.",
+      "links": {
+        "twitter": "https://x.com/zeromonkebiz"
+      }
+    },
+    {
+      "collectionAddress": "DF9oV9ZeUPRh3XUS5opiivRHn9HjqW4kUxD6k1tK8Bqf",
+      "name": "ZMB",
+      "category": "Digital Art",
+      "image": "/collections/zmb.png",
+      "supply": 5000,
+      "addedAt": 1774287450000,
+      "addedBy": "DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX",
+      "verified": true,
+      "description": "Zero Monke Biz (ZMB) Wave 2.",
+      "links": {
+        "twitter": "https://x.com/zeromonkebiz"
+      }
+    },
+    {
+      "collectionAddress": "DC1vqfCoZbZT2jS6NDv1LAL4W3RvLKW5RPZfs13AhbsH",
+      "name": "ZMB",
+      "category": "Digital Art",
+      "image": "/collections/zmb.png",
+      "supply": 5000,
+      "addedAt": 1774287450000,
+      "addedBy": "DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX",
+      "verified": true,
+      "description": "Zero Monke Biz (ZMB) Wave 3.",
+      "links": {
+        "twitter": "https://x.com/zeromonkebiz"
+      }
+    },
+    {
+      "collectionAddress": "54ZnA77u7j6niHEyyD9ZZ6QAkqjCqKY4k6iPT82wxgJ8",
+      "name": "CHADS",
+      "category": "Digital Art",
+      "image": "/collections/chads.png",
+      "supply": 10000,
+      "addedAt": 1774547855961,
+      "addedBy": "DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX",
+      "verified": true,
+      "description": "CHADS is a collection of ProgrammableNFTs on Solana.",
+      "links": {
+        "twitter": "https://x.com/ChadsNFT"
+      }
+    },
+    {
+      "collectionAddress": "CCryptWBYktukHDQ2vHGtVcmtjXxYzvw8XNVY64YN2Yf",
+      "name": "Collectors Crypt"
+    },
+    {
+      "collectionAddress": "BSG6DyEihFFtfvxtL9mKYsvTwiZXB1rq5gARMTJC2xAM",
+      "name": "Phygitals"
     }
   ]
 }

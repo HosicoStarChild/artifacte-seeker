@@ -38,9 +38,11 @@ export default function DigitalArtPage() {
         const res = await fetch("/api/admin/allowlist");
         const data = await res.json();
         // Deduplicate by name (e.g. Quekz has old collection + new WNS authority)
+        // Hide collections that have their own category pages (TCG Cards, etc.)
+        const HIDDEN_COLLECTIONS = ['Collectors Crypt', 'Collector Crypt', 'Phygitals', 'phygitals'];
         const seen = new Map<string, Collection>();
         for (const c of (data.collections || [])) {
-          if (!seen.has(c.name)) seen.set(c.name, c);
+          if (!seen.has(c.name) && !HIDDEN_COLLECTIONS.includes(c.name)) seen.set(c.name, c);
         }
         setCollections(Array.from(seen.values()));
       } catch (err) {
@@ -194,6 +196,7 @@ export default function DigitalArtPage() {
                     <img
                       src={listing.image}
                       alt={listing.name}
+                      loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                       onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.png"; }}
                     />

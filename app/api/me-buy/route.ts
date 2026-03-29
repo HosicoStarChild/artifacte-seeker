@@ -1,285 +1,190 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  Connection,
-  PublicKey,
-  Transaction,
-  SystemProgram,
-  LAMPORTS_PER_SOL,
-  TransactionInstruction,
-  SYSVAR_RENT_PUBKEY,
-} from '@solana/web3.js';
-import {
-  TOKEN_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddress,
-  createAssociatedTokenAccountInstruction,
-} from '@solana/spl-token';
-import {
-  M2_PROGRAM_ID,
-  ME_AUCTION_HOUSE_SOL,
-  ME_NOTARY,
-  TOKEN_METADATA_PROGRAM_ID,
-  AUTH_RULES_PROGRAM_ID,
-  findEscrowPaymentAccount,
-  findAuctionHouseTreasury,
-  findBuyerTradeState,
-  findSellerTradeState,
-  findProgramAsSigner,
-  findMetadataPDA,
-  findEditionPDA,
-  findTokenRecordPDA,
-} from '@/lib/me-buy';
 
 /**
- * Artifacte ME Proxy Buy — Client-Side Transaction Builder
+ * Artifacte ME Proxy Buy API
  * 
- * Builds complete ME buy tx + 2% Artifacte fee.
- * Buyer signs in their wallet, never leaves our site.
+ * Supports both M2 (auction house) and M3 (MMM pool) listings.
  * 
- * Account layouts verified against:
- * https://github.com/magicoss/m2/tree/main/programs/m2/src
+ * Flow for M2 (CC cards, pNFTs):
+ * 1. Fetch listing → call ME /v2/instructions/buy_now → return cosigned tx
+ * 
+ * Flow for M3 (Phygitals, cNFTs):
+ * 1. Fetch listing → detect M3 (empty auctionHouse)
+ * 2. Call ME /v2/instructions/batch with type "m3_buy_now"
+ * 3. Return cosigned tx (same format)
  */
 
-const RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
-const TREASURY_WALLET = new PublicKey('6drXw31FjHch4ixXa4ngTyUD2cySUs3mpcB2YYGA9g7P');
-const PLATFORM_FEE_BPS = 200; // 2%
-
-// ME Auction House authority = same as notary (from on-chain AuctionHouse struct)
-const ME_AUTHORITY = new PublicKey('autMW8SgBkVYeBgqYiTuJZnkvDZMVU2MHJh9Jh7CSQ2');
-
-// ME Auction House notary (from on-chain AuctionHouse.notary field — different from authority!)
-const ME_AH_NOTARY = new PublicKey('NTYeYJ1wr4bpM5xo6zx5En44SvJFAd35zTxxNoERYqd');
-
-// Sysvar Instructions
-const SYSVAR_INSTRUCTIONS = new PublicKey('Sysvar1nstructions1111111111111111111111111');
-
-// Anchor discriminators: sha256("global:<name>")[0..8]
-const DEPOSIT_DISC = Buffer.from([0xf2, 0x23, 0xc6, 0x89, 0x52, 0xe1, 0xf2, 0xb6]);
-const BUY_V2_DISC = Buffer.from([0xb8, 0x17, 0xee, 0x61, 0x67, 0xc5, 0xd3, 0x3d]);
-// execute_sale_v2 disc computed separately in the instruction builder
-
-function encodeU64(val: bigint): Buffer {
-  const buf = Buffer.alloc(8);
-  buf.writeBigUInt64LE(val);
-  return buf;
+const ME_API_KEY = process.env.ME_API_KEY;
+if (!ME_API_KEY) {
+  console.error('[me-buy] ME_API_KEY not set in environment');
 }
+const ME_API_BASE = 'https://api-mainnet.magiceden.dev/v2';
+const ME_BATCH_BASE = 'https://api-mainnet.magiceden.us/v2';
+const CC_AUCTION_HOUSE = 'E8cU1WiRWjanGxmn96ewBgk9vPTcL6AEZ1t6F6fkgUWe';
 
-function encodeI64(val: bigint): Buffer {
-  const buf = Buffer.alloc(8);
-  buf.writeBigInt64LE(val);
-  return buf;
-}
+// Simple in-memory rate limiter: max 10 requests per minute per IP
+const rateMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60_000;
 
-function encodeU16(val: number): Buffer {
-  const buf = Buffer.alloc(2);
-  buf.writeUInt16LE(val);
-  return buf;
-}
-
-function encodeI16(val: number): Buffer {
-  const buf = Buffer.alloc(2);
-  buf.writeInt16LE(val);
-  return buf;
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateMap.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT) return false;
+  entry.count++;
+  return true;
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json({ error: 'Rate limit exceeded. Try again in a minute.' }, { status: 429 });
+    }
+
     const { mint, buyer } = await req.json();
     if (!mint || !buyer) {
       return NextResponse.json({ error: 'Missing mint or buyer' }, { status: 400 });
     }
-
-    const mintPubkey = new PublicKey(mint);
-    const buyerPubkey = new PublicKey(buyer);
-    const connection = new Connection(RPC_URL, 'confirmed');
-
-    // 1. Fetch ME listing
-    const meRes = await fetch(
-      `https://api-mainnet.magiceden.dev/v2/tokens/${mint}/listings`,
-      { headers: { 'Accept': 'application/json' } }
-    );
-    if (!meRes.ok) {
-      return NextResponse.json({ error: 'Failed to fetch ME listing' }, { status: 502 });
+    if (!ME_API_KEY) {
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
-    const listings = await meRes.json();
+
+    // 1. Fetch active listing from ME
+    const listingsRes = await fetch(
+      `${ME_API_BASE}/tokens/${mint}/listings`,
+      { headers: { 'Authorization': `Bearer ${ME_API_KEY}` } }
+    );
+    if (!listingsRes.ok) {
+      return NextResponse.json({ error: 'Failed to fetch listing' }, { status: 502 });
+    }
+    const listings = await listingsRes.json();
     if (!listings?.length) {
-      return NextResponse.json({ error: 'No active listing found on Magic Eden' }, { status: 404 });
+      return NextResponse.json({ error: 'No active listing found' }, { status: 404 });
     }
 
     const listing = listings[0];
-    const seller = new PublicKey(listing.seller);
-    const tokenAccount = new PublicKey(listing.tokenAddress);
-    const sellerReferral = new PublicKey(listing.sellerReferral || ME_NOTARY.toBase58());
-    const priceSol = listing.price;
-    const priceLamports = BigInt(Math.round(priceSol * LAMPORTS_PER_SOL));
+    const seller = listing.seller;
+    const tokenATA = listing.tokenAddress;
+    const price = listing.price;
+    const sellerExpiry = listing.expiry ?? -1;
+    const auctionHouse = listing.auctionHouse;
+    const listingSource = listing.listingSource;
+    const isM3 = !auctionHouse || listingSource === 'M3';
 
-    // 2. Derive all PDAs
-    const [escrowPayment] = findEscrowPaymentAccount(ME_AUCTION_HOUSE_SOL, buyerPubkey);
-    const [ahTreasury] = findAuctionHouseTreasury(ME_AUCTION_HOUSE_SOL);
-    const [buyerTradeState] = findBuyerTradeState(buyerPubkey, ME_AUCTION_HOUSE_SOL, mintPubkey);
-    const [sellerTradeState] = findSellerTradeState(seller, ME_AUCTION_HOUSE_SOL, tokenAccount, mintPubkey);
-    const [programAsSigner] = findProgramAsSigner();
-    const metadataPDA = findMetadataPDA(mintPubkey);
-    const editionPDA = findEditionPDA(mintPubkey);
-    const buyerAta = await getAssociatedTokenAddress(mintPubkey, buyerPubkey);
-    const sellerTokenRecord = findTokenRecordPDA(mintPubkey, tokenAccount);
-    const buyerTokenRecord = findTokenRecordPDA(mintPubkey, buyerAta);
-
-    // Try to get auth rules from on-chain metadata
-    let authRules = AUTH_RULES_PROGRAM_ID; // default fallback
-    try {
-      const metaInfo = await connection.getAccountInfo(metadataPDA);
-      if (metaInfo?.data) {
-        // pNFT programmable config contains auth rules — for now use default
-        // Most CC cards use the same auth rules set
+    // 1b. Verify NFT is still available (skip for M3 — pool handles availability)
+    const HELIUS_KEY = process.env.HELIUS_API_KEY;
+    if (HELIUS_KEY && !isM3) {
+      try {
+        const assetRes = await fetch(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0', id: 1,
+            method: 'getAsset',
+            params: { id: mint },
+          }),
+        });
+        const assetData = await assetRes.json();
+        const currentOwner = assetData?.result?.ownership?.owner;
+        // For M3/MMM listings, NFT is held in ME's escrow PDA (2aSJBUGp...)
+        const ME_CNFT_ESCROW = '2aSJBUGpWWUZty3dafov1Z8Edw3YPA6Z1e2X3aqXu27i';
+        const ME_M2_ESCROW = '1BWutmTvYPwDtmw9abTkS4Ssr8no61spGAvW1X6NDix';
+        if (currentOwner && currentOwner !== seller && currentOwner !== ME_CNFT_ESCROW && currentOwner !== ME_M2_ESCROW) {
+          console.log('[me-buy] Ownership mismatch:', { currentOwner, seller, mint, isM3 });
+          return NextResponse.json({ 
+            error: 'This listing is no longer available — the NFT has already been sold.' 
+          }, { status: 410 });
+        }
+      } catch (e) {
+        console.warn('[me-buy] Ownership check failed, proceeding:', e);
       }
-    } catch (_) {}
-
-    // 3. Build transaction
-    const tx = new Transaction();
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
-    tx.recentBlockhash = blockhash;
-    tx.lastValidBlockHeight = lastValidBlockHeight;
-    tx.feePayer = buyerPubkey;
-
-    // Create buyer ATA if needed
-    const buyerAtaInfo = await connection.getAccountInfo(buyerAta);
-    if (!buyerAtaInfo) {
-      tx.add(createAssociatedTokenAccountInstruction(buyerPubkey, buyerAta, buyerPubkey, mintPubkey));
     }
 
-    // --- Artifacte 2% Platform Fee (pay first while wallet is fully funded) ---
-    const feeAmount = Math.round(Number(priceLamports) * PLATFORM_FEE_BPS / 10000);
-    tx.add(
-      SystemProgram.transfer({
-        fromPubkey: buyerPubkey,
-        toPubkey: TREASURY_WALLET,
-        lamports: feeAmount,
-      })
-    );
+    let buyData: any;
 
-    // --- Deposit ---
-    // Accounts: wallet, notary, escrow_payment_account, authority, auction_house, system_program
-    // Args: _escrow_payment_bump (u8), amount (u64)
-    const depositData = Buffer.concat([
-      DEPOSIT_DISC,
-      Buffer.from([0]), // escrow_payment_bump (ignored by program, uses bump from seeds)
-      encodeU64(priceLamports),
-    ]);
-    tx.add(new TransactionInstruction({
-      programId: M2_PROGRAM_ID,
-      keys: [
-        { pubkey: buyerPubkey, isSigner: true, isWritable: true },
-        { pubkey: ME_NOTARY, isSigner: false, isWritable: false },
-        { pubkey: escrowPayment, isSigner: false, isWritable: true },
-        { pubkey: ME_AUTHORITY, isSigner: false, isWritable: false },
-        { pubkey: ME_AUCTION_HOUSE_SOL, isSigner: false, isWritable: false },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      ],
-      data: depositData,
-    }));
+    if (isM3) {
+      // ── M3 path (Phygitals, cNFTs, MMM pool listings) ──
+      // Uses the batch endpoint on api-mainnet.magiceden.us
+      console.log('[me-buy] M3 listing detected, using batch endpoint');
+      
+      const q = JSON.stringify([{
+        type: 'm3_buy_now',
+        ins: {
+          buyer,
+          seller,
+          assetId: mint,
+          price,
+        }
+      }]);
 
-    // --- Buy V2 ---
-    // Accounts: wallet, notary, token_mint, metadata, escrow_payment_account, 
-    //           authority, auction_house, buyer_trade_state, buyer_referral, token_program, system_program
-    // Args: buyer_price (u64), token_size (u64), buyer_state_expiry (i64), 
-    //        buyer_creator_royalty_bp (u16), extra_args (Vec<u8>)
-    const buyV2Data = Buffer.concat([
-      BUY_V2_DISC,
-      encodeU64(priceLamports),          // buyer_price
-      encodeU64(BigInt(1)),               // token_size
-      encodeI64(BigInt(-1)),              // buyer_state_expiry (no expiry)
-      encodeU16(0),                       // buyer_creator_royalty_bp (0 = default)
-      Buffer.from([0, 0, 0, 0]),          // extra_args: Vec<u8> length=0 (Borsh encoding)
-    ]);
-    tx.add(new TransactionInstruction({
-      programId: M2_PROGRAM_ID,
-      keys: [
-        { pubkey: buyerPubkey, isSigner: true, isWritable: true },
-        { pubkey: ME_NOTARY, isSigner: false, isWritable: false },
-        { pubkey: mintPubkey, isSigner: false, isWritable: false },
-        { pubkey: metadataPDA, isSigner: false, isWritable: false },
-        { pubkey: escrowPayment, isSigner: false, isWritable: true },
-        { pubkey: ME_AUTHORITY, isSigner: false, isWritable: false },
-        { pubkey: ME_AUCTION_HOUSE_SOL, isSigner: false, isWritable: false },
-        { pubkey: buyerTradeState, isSigner: false, isWritable: true },
-        { pubkey: buyerPubkey, isSigner: false, isWritable: false }, // buyer_referral (self)
-        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      ],
-      data: buyV2Data,
-    }));
+      const batchUrl = `${ME_BATCH_BASE}/instructions/batch?q=${encodeURIComponent(q)}&prioFeeMicroLamports=50000&maxPrioFeeLamports=10000000`;
+      
+      const batchRes = await fetch(batchUrl, {
+        headers: { 'Authorization': `Bearer ${ME_API_KEY}` },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!batchRes.ok) {
+        const errText = await batchRes.text();
+        console.error('[me-buy] ME batch API error:', errText);
+        return NextResponse.json({ error: `ME API error: ${errText}` }, { status: 502 });
+      }
 
-    // --- Execute Sale V2 ---
-    // Accounts: buyer, seller, notary, token_account, token_mint, metadata,
-    //           escrow_payment_account, buyer_receipt_token_account, authority,
-    //           auction_house, auction_house_treasury, buyer_trade_state,
-    //           buyer_referral, seller_trade_state, seller_referral,
-    //           token_program, system_program, ata_program, program_as_signer, rent
-    // + remaining accounts: creators (for royalty distribution)
+      const batchData = await batchRes.json();
+      const result = batchData[0];
+      
+      if (result.status === 'rejected') {
+        console.error('[me-buy] M3 buy rejected:', result.reason);
+        return NextResponse.json({ error: result.reason }, { status: 502 });
+      }
 
-    // Get escrow bump and program_as_signer bump
-    const [, escrowBump] = findEscrowPaymentAccount(ME_AUCTION_HOUSE_SOL, buyerPubkey);
-    const [, pasBump] = findProgramAsSigner();
+      buyData = result.value;
+    } else {
+      // ── M2 path (CC cards, pNFTs, standard auction house listings) ──
+      const params = new URLSearchParams({
+        buyer,
+        seller,
+        tokenMint: mint,
+        price: price.toString(),
+        auctionHouseAddress: auctionHouse || CC_AUCTION_HOUSE,
+      });
+      if (tokenATA) params.set('tokenATA', tokenATA);
+      if (sellerExpiry && sellerExpiry !== -1) params.set('sellerExpiry', sellerExpiry.toString());
 
-    // Parse seller's expiry from trade state if available
-    const sellerExpiry = listing.expiry || -1;
+      const buyRes = await fetch(
+        `${ME_API_BASE}/instructions/buy_now?${params}`,
+        { headers: { 'Authorization': `Bearer ${ME_API_KEY}` }, signal: AbortSignal.timeout(15000) }
+      );
+      if (!buyRes.ok) {
+        const errText = await buyRes.text();
+        console.error('[me-buy] ME API error:', errText);
+        return NextResponse.json({ error: `ME API error: ${errText}` }, { status: 502 });
+      }
 
-    const EXEC_SALE_V2_DISC = Buffer.from([0x5b, 0xdc, 0x31, 0xdf, 0xcc, 0x81, 0x35, 0xc1]);
-    const execData = Buffer.concat([
-      EXEC_SALE_V2_DISC,
-      Buffer.from([escrowBump]),         // escrow_payment_bump
-      Buffer.from([pasBump]),            // program_as_signer_bump
-      encodeU64(priceLamports),          // buyer_price
-      encodeU64(BigInt(1)),              // token_size
-      encodeI64(BigInt(-1)),             // buyer_state_expiry
-      encodeI64(BigInt(sellerExpiry)),    // seller_state_expiry
-      encodeI16(0),                      // maker_fee_bp
-      encodeU16(200),                    // taker_fee_bp (ME standard 2%)
-    ]);
+      buyData = await buyRes.json();
+    }
 
-    tx.add(new TransactionInstruction({
-      programId: M2_PROGRAM_ID,
-      keys: [
-        { pubkey: buyerPubkey, isSigner: true, isWritable: true },     // buyer
-        { pubkey: seller, isSigner: false, isWritable: true },          // seller
-        { pubkey: ME_AH_NOTARY, isSigner: false, isWritable: false },   // notary
-        { pubkey: tokenAccount, isSigner: false, isWritable: true },    // token_account
-        { pubkey: mintPubkey, isSigner: false, isWritable: false },     // token_mint
-        { pubkey: metadataPDA, isSigner: false, isWritable: false },    // metadata
-        { pubkey: escrowPayment, isSigner: false, isWritable: true },   // escrow_payment_account
-        { pubkey: buyerAta, isSigner: false, isWritable: true },        // buyer_receipt_token_account
-        { pubkey: ME_AUTHORITY, isSigner: false, isWritable: false },   // authority
-        { pubkey: ME_AUCTION_HOUSE_SOL, isSigner: false, isWritable: false }, // auction_house
-        { pubkey: ahTreasury, isSigner: false, isWritable: true },      // auction_house_treasury
-        { pubkey: buyerTradeState, isSigner: false, isWritable: true },  // buyer_trade_state
-        { pubkey: buyerPubkey, isSigner: false, isWritable: true },        // buyer_referral (same as buy_v2)
-        { pubkey: sellerTradeState, isSigner: false, isWritable: true }, // seller_trade_state
-        { pubkey: sellerReferral, isSigner: false, isWritable: true },   // seller_referral
-        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-        { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: programAsSigner, isSigner: false, isWritable: false }, // program_as_signer
-        { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
-      ],
-      data: execData,
-    }));
-
-    // 4. Serialize
-    const serialized = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
-
+    // 3. Return cosigned tx (same format for both M2 and M3)
     return NextResponse.json({
-      transaction: Buffer.from(serialized).toString('base64'),
-      price: priceSol,
-      priceLamports: priceLamports.toString(),
-      fee: feeAmount / LAMPORTS_PER_SOL,
-      feelamports: feeAmount,
-      seller: seller.toBase58(),
+      v0Tx: buyData.v0?.tx?.data ? Buffer.from(buyData.v0.tx.data).toString('base64') : null,
+      v0TxSigned: buyData.v0?.txSigned?.data ? Buffer.from(buyData.v0.txSigned.data).toString('base64') : 
+                  buyData.txSigned?.data ? Buffer.from(buyData.txSigned.data).toString('base64') : null,
+      legacyTx: buyData.tx?.data ? Buffer.from(buyData.tx.data).toString('base64') : null,
+      blockhash: buyData.blockhashData?.blockhash,
+      lastValidBlockHeight: buyData.blockhashData?.lastValidBlockHeight,
+      price,
+      seller,
       mint,
+      listingSource: isM3 ? 'M3' : 'M2',
+      auctionHouse: auctionHouse || null,
     });
 
   } catch (err: any) {
     console.error('[me-buy] Error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to build transaction' }, { status: 500 });
+    return NextResponse.json({ error: err.message || 'Failed to build buy transaction' }, { status: 500 });
   }
 }

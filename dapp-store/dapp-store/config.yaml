@@ -1,0 +1,59 @@
+# Solana dApp Store Publishing Config
+# https://github.com/solana-mobile/dapp-publishing
+
+publisher:
+  name: "Hosico Labs"
+  address: "DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX"
+  website: "https://artifacte.io"
+  email: "hosico78@gmail.com"
+
+app:
+  name: "Artifacte"
+  android_package: "io.artifacte.app"
+  urls:
+    - "https://artifacte.io"
+  
+release:
+  catalog:
+    en-US:
+      name: "Artifacte"
+      short_description: "RWA tokenization marketplace on Solana"
+      long_description: |
+        Artifacte is an institutional-grade marketplace for real world assets on Solana.
+        
+        Browse and trade:
+        • Graded TCG Cards (Pokemon, One Piece, Dragon Ball)
+        • Sports Cards (PSA, BGS, CGC graded)
+        • High-End Spirits & Whisky (via BAXUS)
+        • Digital Collectibles (Mad Lads, DeGods, SMB, and more)
+        • Sealed Products
+        • Luxury Watches
+        
+        Features:
+        • Real-time market valuations powered by our proprietary oracle
+        • Portfolio tracking with floor price and oracle data
+        • On-chain auctions and fixed price listings
+        • USD1/USDC stablecoin support for RWA purchases
+        • Vault-secured physical assets (PSA, PWCC, OmniVault)
+        
+        Built by Hosico Labs for the Solana Graveyard Hackathon.
+      new_in_version: "Initial release"
+      saga_features: "Full PWA support, optimized for Seeker display"
+  
+  solana_mobile_dapp_publisher_portal:
+    google_store_package: ""
+    testing_instructions: |
+      1. Open https://artifacte.io on Seeker browser
+      2. Connect wallet via Solflare or Phantom
+      3. Browse TCG cards, view portfolio
+      4. Install as PWA from browser menu
+
+  media:
+    icon: "../public/icon-512x512.png"
+    screenshots:
+      - path: "../public/screenshots/home.png"
+        description: "Homepage with featured collections"
+      - path: "../public/screenshots/tcg.png"
+        description: "TCG Cards marketplace"
+      - path: "../public/screenshots/portfolio.png"
+        description: "Portfolio with oracle valuations"

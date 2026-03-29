@@ -2,9 +2,13 @@ import { NextResponse } from 'next/server';
 
 // Proxy to Railway oracle listings index — fast, pre-indexed, real-time via webhooks
 const ORACLE_API = 'https://artifacte-oracle-production.up.railway.app';
+// ME API no longer needed here — phygitals indexed in oracle
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const category = searchParams.get('category');
+
+  // Phygitals are now indexed in the oracle — no separate fetch needed
 
   // Forward all query params to Railway
   const params = new URLSearchParams(searchParams.toString());
@@ -12,7 +16,7 @@ export async function GET(request: Request) {
   try {
     const res = await fetch(`${ORACLE_API}/api/listings?${params}`, {
       signal: AbortSignal.timeout(15000),
-      cache: 'no-store', // Don't cache — Railway is fast, each request has unique filters
+      cache: 'no-store',
     });
 
     if (!res.ok) {
@@ -32,5 +36,7 @@ export async function GET(request: Request) {
     );
   }
 }
+
+
 
 export const maxDuration = 30;

@@ -103,7 +103,9 @@ export default function PortfolioPage() {
   const [filter, setFilter] = useState<FilterType>("all");
   const [floorPrices, setFloorPrices] = useState<Record<string, { name: string; floor: number }>>({});
   const [digitalCollectiblesValue, setDigitalCollectiblesValue] = useState(0);
-  const [digitalNfts, setDigitalNfts] = useState<Array<{ id: string; name: string; image: string; collection: string; floorPrice: number }>>([]);
+  const [digitalNfts, setDigitalNfts] = useState<Array<{ id: string; name: string; image: string; collection: string; floorPrice: number; tcg?: string }>>([]);
+  const [artifacteRwaValue, setArtifacteRwaValue] = useState(0);
+  const [artifacteRwaCount, setArtifacteRwaCount] = useState(0);
   
   // Whitelisted collection addresses for digital collectibles
   const WHITELISTED_COLLECTIONS = new Set([
@@ -127,6 +129,7 @@ export default function PortfolioPage() {
     "7cHTjqr2S8uUCrG3TVFvFix3vcLjhPiwrtRsAeJtESRj", // Drifella 2
     "ArqtvxDZ1nfWgnGiHYCFTLj4FSVuyf7tmkAetQ9SScyQ", // Drifella III
     "8vE4uASPp9WbS9Ls2qzJ9fpUBpR3UrTG3hBZXdAJQ9mz", // Monkey Baby Business
+    "54ZnA77u7j6niHEyyD9ZZ6QAkqjCqKY4k6iPT82wxgJ8", // CHADS
   ]);
 
   useEffect(() => {
@@ -178,6 +181,7 @@ export default function PortfolioPage() {
             // Build digital NFTs list with floor prices
             let totalDigitalValue = 0;
             const digitalItems: typeof digitalNfts = [];
+            const artifacteItems: { asset: any; priceSource: string; priceSourceId: string; tcg: string }[] = [];
             
             nftData.result.items.forEach((asset: HeliumAsset) => {
               // Match by collection grouping (standard) or authority (WNS/Token-2022)
@@ -187,6 +191,27 @@ export default function PortfolioPage() {
                 // Check authorities for WNS NFTs
                 const auth = (asset as any).authorities?.find((a: any) => WHITELISTED_COLLECTIONS.has(a.address));
                 matchedAddress = auth?.address;
+              }
+              // Check for Artifacte-minted NFTs (admin wallet as creator/authority)
+              // Skip the collection NFT itself
+              if (asset.id === "jzkJTGAuDcWthM91S1ch7wPcfMUQB5CdYH6hA25K4CS") return;
+              // CC cards + Phygitals show as Artifacte cards
+              const CC_COLLECTION = "CCryptWBYktukHDQ2vHGtVcmtjXxYzvw8XNVY64YN2Yf";
+              const PHYGITALS_COLLECTION = "BSG6DyEihFFtfvxtL9mKYsvTwiZXB1rq5gARMTJC2xAM";
+              const cardCollections = new Set([CC_COLLECTION, PHYGITALS_COLLECTION]);
+              const isCCCard = asset.grouping?.some((g: any) => g.group_key === "collection" && cardCollections.has(g.group_value));
+              
+              const isArtifacte = isCCCard || (!matchedAddress && (
+                (asset as any).authorities?.some((a: any) => a.address === "DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX") ||
+                (asset as any).creators?.some((c: any) => c.address === "DDSpvAK8DbuAdEaaBHkfLieLPSJVCWWgquFAA3pvxXoX")
+              ));
+              if (isArtifacte) {
+                const attrs = (asset.content?.metadata as any)?.attributes || [];
+                const priceSource = attrs.find((a: any) => a.trait_type === "Price Source")?.value;
+                const priceSourceId = attrs.find((a: any) => a.trait_type === "Price Source ID")?.value;
+                const tcgName = attrs.find((a: any) => a.trait_type === "TCG")?.value || "Other";
+                artifacteItems.push({ asset, priceSource, priceSourceId, tcg: tcgName });
+                return;
               }
               if (matchedAddress && WHITELISTED_COLLECTIONS.has(matchedAddress)) {
                 const fp = localFloorPrices[matchedAddress];
@@ -214,9 +239,38 @@ export default function PortfolioPage() {
               }
             });
 
+            // Fetch prices for Artifacte-minted NFTs
+            let totalArtifacteValue = 0;
+            for (const item of artifacteItems) {
+              let price = 0;
+              if (item.priceSource === "TCGplayer" && item.priceSourceId) {
+                try {
+                  const tcgRes = await fetch(`/api/tcgplayer-price?id=${item.priceSourceId}`);
+                  if (tcgRes.ok) {
+                    const tcgData = await tcgRes.json();
+                    price = tcgData.marketPrice || tcgData.listedMedianPrice || 0;
+                  }
+                } catch {}
+              }
+              totalArtifacteValue += price;
+              digitalItems.push({
+                id: item.asset.id,
+                name: item.asset.content?.metadata?.name || item.asset.name || "Unknown",
+                image: item.asset.content?.links?.image || item.asset.image || "",
+                collection: "Artifacte",
+                floorPrice: price,
+                tcg: item.tcg,
+              });
+            }
+
             if (!cancelled) {
+              // Separate Artifacte RWAs from digital collectibles
+              const realDigital = digitalItems.filter(d => d.collection !== "Artifacte");
+              const artifacteCards = digitalItems.filter(d => d.collection === "Artifacte");
               setDigitalCollectiblesValue(totalDigitalValue);
-              setDigitalNfts(digitalItems);
+              setDigitalNfts(digitalItems); // Keep all for display
+              setArtifacteRwaValue(totalArtifacteValue);
+              setArtifacteRwaCount(artifacteCards.length);
             }
           }
         }
@@ -328,7 +382,7 @@ export default function PortfolioPage() {
                     RWA Market Value
                   </p>
                   <h2 className="font-serif text-5xl text-gold-400 font-bold mb-2">
-                    {formatFullPrice(pd.totalListedValue || 0)}
+                    {formatFullPrice((pd.totalListedValue || 0) + artifacteRwaValue)}
                   </h2>
                   <p className="text-gray-600 text-xs">
                     Powered by Artifacte Oracle
@@ -370,37 +424,45 @@ export default function PortfolioPage() {
                 {/* RWAs */}
                 <div className="bg-dark-800 rounded-xl border border-white/5 p-5">
                   <p className="text-gray-500 text-[10px] font-semibold uppercase tracking-widest mb-2">RWAs</p>
-                  <p className="font-serif text-2xl text-gold-400 font-bold">{pd.totalCards}</p>
-                  <p className="text-gray-600 text-xs mt-1">{pd.listedCards} listed · {pd.unlistedCards} unlisted</p>
+                  <p className="font-serif text-2xl text-gold-400 font-bold">{pd.totalCards + artifacteRwaCount}</p>
+                  <p className="text-gray-600 text-xs mt-1">{pd.totalCards > 0 ? `${pd.listedCards} listed · ${pd.unlistedCards} unlisted` : ""}{artifacteRwaCount > 0 ? `${pd.totalCards > 0 ? " · " : ""}${artifacteRwaCount} Artifacte` : ""}</p>
                 </div>
 
                 {/* Digital Collectibles */}
                 <div className="bg-dark-800 rounded-xl border border-white/5 p-5">
                   <p className="text-gray-500 text-[10px] font-semibold uppercase tracking-widest mb-2">Digital Collectibles</p>
-                  <p className="font-serif text-2xl text-blue-400 font-bold">{digitalNfts.length}</p>
+                  <p className="font-serif text-2xl text-blue-400 font-bold">{digitalNfts.filter(d => d.collection !== "Artifacte").length}</p>
                   <p className="text-gray-600 text-xs mt-1">In wallet</p>
                 </div>
 
                 {/* On Marketplace */}
                 <div className="bg-dark-800 rounded-xl border border-white/5 p-5">
-                  <p className="text-gray-500 text-[10px] font-semibold uppercase tracking-widest mb-2">On Marketplace</p>
-                  <p className="font-serif text-2xl text-gold-400 font-bold">{pd.listedCards}</p>
-                  <p className="text-gray-600 text-xs mt-1">Cards listed</p>
+                  <p className="text-gray-500 text-[10px] font-semibold uppercase tracking-widest mb-2">RWA Cards</p>
+                  <p className="font-serif text-2xl text-gold-400 font-bold">{pd.totalCards + artifacteRwaCount}</p>
+                  <p className="text-gray-600 text-xs mt-1">Physical-backed</p>
                 </div>
 
                 {/* Total Portfolio */}
                 <div className="bg-dark-800 rounded-xl border border-white/5 p-5">
                   <p className="text-gray-500 text-[10px] font-semibold uppercase tracking-widest mb-2">Total Portfolio</p>
-                  <p className="font-serif text-2xl text-white font-bold">{pd.totalCards + digitalNfts.length}</p>
+                  <p className="font-serif text-2xl text-white font-bold">{pd.totalCards + artifacteRwaCount + digitalNfts.filter(d => d.collection !== "Artifacte").length}</p>
                   <p className="text-gray-600 text-xs mt-1">RWAs + Digital Collectibles</p>
                 </div>
               </div>
 
               {/* Portfolio Value by Category (Oracle) */}
               {(() => {
-                const catValues = { ...(portfolioData?.marketCategoriesByValue || {}) };
+                const catValues: Record<string, number> = { ...(portfolioData?.marketCategoriesByValue || {}) };
                 if (digitalCollectiblesValue > 0) {
                   catValues["Digital Collectibles"] = digitalCollectiblesValue;
+                }
+                // Add Artifacte RWA values by TCG category
+                if (artifacteRwaValue > 0) {
+                  const artifacteCards = digitalNfts.filter(d => d.collection === "Artifacte" && d.floorPrice > 0);
+                  for (const card of artifacteCards) {
+                    const cat = `Artifacte ${card.tcg || "Other"}`;
+                    catValues[cat] = (catValues[cat] || 0) + card.floorPrice;
+                  }
                 }
                 const maxVal = Math.max(...Object.values(catValues), 1);
                 return Object.keys(catValues).length > 0 ? (
@@ -421,7 +483,7 @@ export default function PortfolioPage() {
                             <div className="flex justify-between items-center mb-2">
                               <p className="text-sm text-gray-300">{category}</p>
                               <p className={`text-xs font-semibold ${category === "Digital Collectibles" ? "text-blue-400" : "text-gold-400"}`}>
-                                {category === "Digital Collectibles" ? formatSolPrice(value) : formatCurrency(value)}
+                                {category === "Digital Collectibles" ? formatSolPrice(value) : category.startsWith("Artifacte") ? `$${value.toFixed(2)}` : formatCurrency(value)}
                               </p>
                             </div>
                             <div className="w-full bg-dark-900 rounded-full h-2">
@@ -527,7 +589,8 @@ export default function PortfolioPage() {
               {filteredCards.map((card) => (
                 <div
                   key={card.nftAddress}
-                  className="bg-dark-800 rounded-xl border border-white/5 overflow-hidden card-hover group"
+                  onClick={() => window.location.href = `/auctions/cards/${card.nftAddress}`}
+                  className="bg-dark-800 rounded-xl border border-white/5 overflow-hidden card-hover group cursor-pointer"
                 >
                   {/* Card Image */}
                   <div className="aspect-square overflow-hidden bg-dark-900">
@@ -609,20 +672,7 @@ export default function PortfolioPage() {
                       {card.vault && ` • ${card.vault}`}
                     </p>
 
-                    {/* Alt.xyz Research Link */}
-                    {card.altResearchUrl && (
-                      <a
-                        href={card.altResearchUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-400 hover:text-blue-300 transition-colors"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                        </svg>
-                        View Market Data on Alt.xyz
-                      </a>
-                    )}
+
                   </div>
                 </div>
               ))}
@@ -634,10 +684,20 @@ export default function PortfolioPage() {
                 <h2 className="font-serif text-2xl text-white mb-6">Digital Collectibles</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {digitalNfts.map((nft) => (
-                    <div key={nft.id} className="bg-dark-800 rounded-xl border border-white/5 overflow-hidden hover:border-blue-500/30 transition group">
+                    <div key={nft.id} onClick={() => {
+                      if (nft.collection === "Artifacte") window.location.href = `/auctions/cards/${nft.id}`;
+                    }} className={`bg-dark-800 rounded-xl border border-white/5 overflow-hidden hover:border-blue-500/30 transition group ${nft.collection === "Artifacte" ? "cursor-pointer" : ""}`}>
                       <div className="aspect-square overflow-hidden bg-dark-700">
                         {nft.image ? (
-                          <img src={nft.image} alt={nft.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                          <img src={(() => {
+                            let u = nft.image;
+                            if (u.includes("nftstorage.link/") || u.includes("/ipfs/") || u.startsWith("ipfs://")) {
+                              if (u.startsWith("ipfs://")) u = u.replace("ipfs://", "https://nftstorage.link/ipfs/");
+                              return `/api/img-proxy?url=${encodeURIComponent(u)}`;
+                            }
+                            if (u.includes("arweave.net/")) return `/api/img-proxy?url=${encodeURIComponent(u)}`;
+                            return u;
+                          })()} alt={nft.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-4xl bg-dark-800">🖼️</div>
                         )}
@@ -646,8 +706,8 @@ export default function PortfolioPage() {
                         <h3 className="text-white font-medium text-sm truncate">{nft.name}</h3>
                         <p className="text-gray-500 text-[10px] mt-1">{nft.collection}</p>
                         <div className="mt-3">
-                          <p className="text-gray-500 text-[9px] font-semibold uppercase tracking-widest mb-1">Floor Price</p>
-                          <p className="text-blue-400 font-serif text-lg font-bold">◎ {nft.floorPrice.toFixed(2)}</p>
+                          <p className="text-gray-500 text-[9px] font-semibold uppercase tracking-widest mb-1">{nft.collection === "Artifacte" ? "Market Price" : "Floor Price"}</p>
+                          <p className="text-blue-400 font-serif text-lg font-bold">{nft.collection === "Artifacte" ? `$${nft.floorPrice.toFixed(2)}` : `◎ ${nft.floorPrice.toFixed(2)}`}</p>
                         </div>
                       </div>
                     </div>

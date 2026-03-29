@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
+if (!process.env.HELIUS_API_KEY) console.warn("[nft] HELIUS_API_KEY not set");
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,7 +50,9 @@ export async function GET(request: NextRequest) {
         creators: asset.creators || [],
         mint_extensions: asset.mint_extensions || null,
         authorities: asset.authorities || [],
+        attributes: metadata.attributes || [],
       },
+      result: asset, // Raw Helius response for detailed lookups
     });
   } catch (error) {
     console.error("Error fetching NFT:", error);
